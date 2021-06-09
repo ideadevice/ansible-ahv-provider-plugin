@@ -1,0 +1,9 @@
+namespace: "nutanix"
+name: "nutanix"
+version: "0.0.1"
+readme: "README.md"
+authors:
+    - "Balu George (@balugeorge)"
+tags:
+    - collection
+repository: "https://www.github.com/ideadevice/ansible-ahv-provider-plugin"
