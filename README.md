@@ -23,8 +23,8 @@ _Add `--force` option for rebuilding or reinstalling to overwrite existing data_
       validate_certs: False
     register: result
   - debug:
-      msg: "{{ item.status.name }}"
+      msg: "{{ item.name }}"
     loop: "{{ result.vms }}"
     loop_control:
-      label: "{{ item.status.name }}"
+      label: "{{ item.name }}"
 ```
