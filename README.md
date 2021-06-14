@@ -24,7 +24,7 @@ _Add `--force` option for rebuilding or reinstalling to overwrite existing data_
     register: result
   - debug:
       msg: "{{ item.status.name }}"
-    with_items: "{{ result.entities }}"
+    loop: "{{ result.entities }}"
     loop_control:
       label: "{{ item.status.name }}"
 ```
