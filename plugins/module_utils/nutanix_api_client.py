@@ -20,13 +20,13 @@ class NutanixApiError(Exception):
 class NutanixApiClient(object):
     """Nutanix Rest API client"""
     def __init__(self, hostname, username, password, port, validate_certs, **kwargs):
-        self.v3_api_base = f"https://{hostname}:{port}/api/nutanix/v3"
+        self.api_base = f"https://{hostname}:{port}/api/nutanix"
         self.auth = (username, password)
         self.validate_certs = validate_certs
         self.session = requests.Session()
 
     def request(self, api_endpoint, method, data):
-        self.api_url = f"{self.v3_api_base}/{api_endpoint}"
+        self.api_url = f"{self.api_base}/{api_endpoint}"
         headers = {'Content-Type': 'application/json',  'Accept':'application/json'}
         # To-do: add retry support
         try:

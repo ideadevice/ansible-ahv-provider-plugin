@@ -98,7 +98,7 @@ def get_vm_list():
 
     # List VMs
     data = module.params['data']
-    vm_list_response = client.request(api_endpoint="vms/list", method="POST", data=data)
+    vm_list_response = client.request(api_endpoint="v3/vms/list", method="POST", data=data)
     spec_list, status_list = [], []
     for entity in json.loads(vm_list_response.content)["entities"]:
         spec_list.append(entity["spec"])
