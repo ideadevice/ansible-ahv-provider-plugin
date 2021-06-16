@@ -25,13 +25,13 @@ class NutanixApiClient(object):
         self.validate_certs = validate_certs
         self.session = requests.Session()
 
-    def request(self, api_endpoint, method, data):
+    def request(self, api_endpoint, method, data, timeout=5):
         self.api_url = f"{self.api_base}/{api_endpoint}"
         headers = {'Content-Type': 'application/json',  'Accept':'application/json'}
         # To-do: add retry support
         try:
-            response = self.session.request(method=method, url=self.api_url, auth=self.auth, data=data, headers=headers, verify=self.validate_certs)
-        except requests.exceptions.ConnectionError:
+            response = self.session.request(method=method, url=self.api_url, auth=self.auth, data=data, headers=headers, verify=self.validate_certs, timeout=timeout)
+        except requests.exceptions.RequestException:
             raise NutanixApiError("Error connecting to PC, response code {response.status_code}, content {response.content}")
 
         if response.ok:
