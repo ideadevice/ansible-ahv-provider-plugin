@@ -30,11 +30,11 @@ class NutanixApiClient(object):
         headers = {'Content-Type': 'application/json',  'Accept':'application/json'}
         # To-do: add retry support
         try:
-            resp = self.session.request(method=method, url=self.api_url, auth=self.auth, data=data, headers=headers, verify=self.validate_certs)
+            response = self.session.request(method=method, url=self.api_url, auth=self.auth, data=data, headers=headers, verify=self.validate_certs)
         except requests.exceptions.ConnectionError:
-            raise NutanixApiError("Error connecting to PC, response code {resp.status_code}, content {resp.content}")
+            raise NutanixApiError("Error connecting to PC, response code {response.status_code}, content {response.content}")
 
-        if resp.ok:
-            return resp
+        if response.ok:
+            return response
         else:
-            raise NutanixApiError(f"Request failed to complete, response code {resp.status_code}, content {resp.content}")
+            raise NutanixApiError(f"Request failed to complete, response code {response.status_code}, content {resp.content}")
