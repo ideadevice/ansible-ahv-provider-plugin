@@ -17,9 +17,9 @@ _Add `--force` option for rebuilding or reinstalling to overwrite existing data_
   - nutanix.nutanix
   tasks:
   - nutanix_vm_info:
-      hostname: {{ pc_hostname }}
-      username: {{ pc_username }}
-      password: {{ pc_password }}
+      pc_hostname: {{ pc_hostname }}
+      pc_username: {{ pc_username }}
+      pc_password: {{ pc_password }}
       validate_certs: False
     register: result
   - debug:
