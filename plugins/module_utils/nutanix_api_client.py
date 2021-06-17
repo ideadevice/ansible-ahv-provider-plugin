@@ -25,7 +25,7 @@ class NutanixApiClient(object):
         self.validate_certs = validate_certs
         self.session = requests.Session()
 
-    def request(self, api_endpoint, method, data, timeout=5):
+    def request(self, api_endpoint, method, data, timeout=20):
         self.api_url = f"{self.api_base}/{api_endpoint}"
         headers = {'Content-Type': 'application/json',  'Accept':'application/json'}
         try:
