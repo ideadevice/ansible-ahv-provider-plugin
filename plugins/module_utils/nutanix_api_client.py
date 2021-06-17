@@ -24,6 +24,9 @@ class NutanixApiClient(object):
         self.auth = (pc_username, pc_password)
         self.validate_certs = validate_certs
         self.session = requests.Session()
+        if not validate_certs:
+            from urllib3.exceptions import InsecureRequestWarning
+            requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
     def request(self, api_endpoint, method, data, timeout=20):
         self.api_url = f"{self.api_base}/{api_endpoint}"

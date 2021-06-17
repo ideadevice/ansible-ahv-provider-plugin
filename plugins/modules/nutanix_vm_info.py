@@ -95,14 +95,16 @@ def get_vm_list():
     # List VMs
     data = module.params['data']
     vm_list_response = client.request(api_endpoint="v3/vms/list", method="POST", data=data)
-    spec_list, status_list, vm_list = [], [], []
+    spec_list, status_list, vm_list, meta_list = [], [], [], []
     for entity in json.loads(vm_list_response.content)["entities"]:
         spec_list.append(entity["spec"])
         status_list.append(entity["status"])
         vm_list.append(entity["status"]["name"])
+        meta_list.append(entity["metadata"])
     result["vms_spec"] = spec_list
     result["vm_status"] = status_list
     result["vms"] = vm_list
+    result["meta"] = meta_list
 
     # simple AnsibleModule.exit_json(), passing the key/value results
     module.exit_json(**result)
