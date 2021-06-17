@@ -60,6 +60,7 @@ RETURN = r'''
 '''
 
 import json
+from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, NutanixApiError
 
@@ -67,9 +68,9 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 def get_vm_list():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
-        hostname=dict(type='str', required=True),
-        username=dict(type='str', required=True),
-        password=dict(type='str', required=True, no_log=True),
+        hostname=dict(type='str', required=True, fallback=(env_fallback, ["PC_HOSTNAME"])),
+        username=dict(type='str', required=True, fallback=(env_fallback, ["PC_USERNAME"])),
+        password=dict(type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])),
         port=dict(default="9440", type='str', required=False),
         data=dict(default="{}", type='str', required=False),
         validate_certs=dict(default=True, type='bool', required=False),
