@@ -12,25 +12,25 @@ short_description: Basic vm info module which supports vm list operation
 
 version_added: "0.0.1"
 
-description: This is my longer description explaining my test info module.
+description: Longer description for nutanix info module.
 
 options:
-    hostname:
+    pc_hostname:
         description:
         - PC hostname or IP address
         type: str
         required: True
-    username:
+    pc_username:
         description:
         - PC username
         type: str
         required: True
-    password:
+    pc_password:
         description:
         - PC password
         required: True
         type: str
-    port:
+    pc_port:
         description:
         - PC port
         type: str
@@ -44,10 +44,10 @@ EXAMPLES = r'''
 # Pass in a message
 - name: Test with a message
   nutanix.nutanix.my_vm_info:
-    hostname: {{ pc_hostname }}
-    username: {{ pc_username }}
-    password: {{ pc_password }}
-    port: 9440
+    pc_hostname: {{ pc_hostname }}
+    pc_username: {{ pc_username }}
+    pc_password: {{ pc_password }}
+    pc_port: 9440
     data: {}
     validate_certs: False
   register: result
@@ -56,7 +56,7 @@ EXAMPLES = r'''
 '''
 
 RETURN = r'''
-# Todo
+## TO-DO
 '''
 
 import json
@@ -76,21 +76,18 @@ def get_vm_list():
         validate_certs=dict(default=True, type='bool', required=False),
     )
 
-    # the AnsibleModule object will be our abstraction working with Ansible
-    # this includes instantiation, a couple of common attr would be the
-    # args/params passed to the execution, as well as if the module
-    # supports check mode
     module = AnsibleModule(
         argument_spec=module_args,
         supports_check_mode=True
     )
 
-    # Create an empty result dict
-    result = {}
+    # Seed result dict
+    result = dict(
+        changed=False,
+        ansible_facts=dict(),
+    )
 
-    # if the user is working with this module in only check mode we do not
-    # want to make any changes to the environment, just return the current
-    # state with no modifications
+    # return initial result dict for dry run without execution
     if module.check_mode:
         module.exit_json(**result)
 
@@ -111,7 +108,6 @@ def get_vm_list():
     result["vms"] = vm_list
     result["meta"] = meta_list
 
-    # in the event of a successful module execution, you will want to
     # simple AnsibleModule.exit_json(), passing the key/value results
     module.exit_json(**result)
 
