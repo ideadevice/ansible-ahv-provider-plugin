@@ -36,4 +36,4 @@ class NutanixApiClient(object):
         if response.ok:
             return response
         else:
-            raise NutanixApiError(f"Request failed to complete, response code {response.status_code}, content {resp.content}")
+            raise NutanixApiError(f"Request failed to complete, response code {response.status_code}, content {response.content}")
