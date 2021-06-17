@@ -41,18 +41,16 @@ author:
 '''
 
 EXAMPLES = r'''
-# Pass in a message
-- name: Test with a message
-  nutanix.nutanix.my_vm_info:
+- name: List images
+  nutanix.nutanix.nutanix_vm_info:
     pc_hostname: {{ pc_hostname }}
     pc_username: {{ pc_username }}
     pc_password: {{ pc_password }}
     pc_port: 9440
-    data: {}
     validate_certs: False
   register: result
 - debug:
-    var: result.entities
+    var: {{ result.vms }}
 '''
 
 RETURN = r'''
