@@ -19,11 +19,14 @@ class NutanixApiError(Exception):
 
 class NutanixApiClient(object):
     """Nutanix Rest API client"""
-    def __init__(self, hostname, username, password, port, validate_certs, **kwargs):
-        self.api_base = f"https://{hostname}:{port}/api/nutanix"
-        self.auth = (username, password)
+    def __init__(self, pc_hostname, pc_username, pc_password, pc_port, validate_certs, **kwargs):
+        self.api_base = f"https://{pc_hostname}:{pc_port}/api/nutanix"
+        self.auth = (pc_username, pc_password)
         self.validate_certs = validate_certs
         self.session = requests.Session()
+        if not validate_certs:
+            from urllib3.exceptions import InsecureRequestWarning
+            requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
     def request(self, api_endpoint, method, data, timeout=5):
         self.api_url = f"{self.api_base}/{api_endpoint}"

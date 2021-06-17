@@ -68,10 +68,10 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 def get_vm_list():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
-        hostname=dict(type='str', required=True, fallback=(env_fallback, ["PC_HOSTNAME"])),
-        username=dict(type='str', required=True, fallback=(env_fallback, ["PC_USERNAME"])),
-        password=dict(type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])),
-        port=dict(default="9440", type='str', required=False),
+        pc_hostname=dict(type='str', required=True, fallback=(env_fallback, ["PC_HOSTNAME"])),
+        pc_username=dict(type='str', required=True, fallback=(env_fallback, ["PC_USERNAME"])),
+        pc_password=dict(type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])),
+        pc_port=dict(default="9440", type='str', required=False),
         data=dict(default="{}", type='str', required=False),
         validate_certs=dict(default=True, type='bool', required=False),
     )
@@ -100,14 +100,16 @@ def get_vm_list():
     # List VMs
     data = module.params['data']
     vm_list_response = client.request(api_endpoint="v3/vms/list", method="POST", data=data)
-    spec_list, status_list, vm_list = [], [], []
+    spec_list, status_list, vm_list, meta_list = [], [], [], []
     for entity in json.loads(vm_list_response.content)["entities"]:
         spec_list.append(entity["spec"])
         status_list.append(entity["status"])
         vm_list.append(entity["status"]["name"])
+        meta_list.append(entity["metadata"])
     result["vms_spec"] = spec_list
     result["vm_status"] = status_list
     result["vms"] = vm_list
+    result["meta"] = meta_list
 
     # in the event of a successful module execution, you will want to
     # simple AnsibleModule.exit_json(), passing the key/value results
