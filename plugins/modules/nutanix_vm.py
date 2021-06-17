@@ -230,6 +230,10 @@ async def _create(params, client):
         response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
         if json.loads(response.content)["status"] == "SUCCEEDED":
             break
+        elif json.loads(response.content)["status"] == "FAILED":
+            result["failed"] = True
+            result["msg"] = json.loads(response.content)["error_detail"]
+            return result
         time.sleep(5)
 
     while True:
@@ -278,6 +282,10 @@ async def _delete(params, client):
         response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
         if json.loads(response.content)["status"] == "SUCCEEDED":
             break
+        elif json.loads(response.content)["status"] == "FAILED":
+            result["failed"] = True
+            result["msg"] = json.loads(response.content)["error_detail"]
+            return result
         time.sleep(5)
 
     return result
