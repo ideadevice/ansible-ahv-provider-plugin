@@ -56,6 +56,7 @@ CREATE_PAYLOAD = {
 
 import json
 import time
+import base64
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, NutanixApiError
 
@@ -78,6 +79,7 @@ async def main():
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
         cluster_uuid=dict(type='str', required=True),
+        dry_run=dict(type='bool', required=False),
         disk_list=dict(
             type='list', 
             required=True, 
@@ -108,10 +110,11 @@ async def main():
             default="present", 
             type='str', 
             choices=[
+            "present",
             "absent",
-            "clone",
-            "present"
+            "update"
             ]),
+        guest_customization=dict(type='dict', required=False),
         force_update=dict(default=False, type='bool', required=False),
     )
 
@@ -218,7 +221,21 @@ async def _create(params, client):
     vm_spec["spec"]["resources"]["nic_list"] = nic_list
     vm_spec["spec"]["resources"]["disk_list"] = disk_list
 
+    if params["guest_customization"]:
+        if "cloud_init" in params["guest_customization"]:
+            cloud_init_encoded = base64.b64encode(params["guest_customization"]["cloud_init"].encode('ascii'))
+            vm_spec["spec"]["resources"]["guest_customization"] = {
+                    "cloud_init": {
+                        "user_data" : cloud_init_encoded.decode('ascii')
+                        }
+                }
+
+
     vm_spec["spec"]["cluster_reference"] = { "kind": "cluster", "uuid": params['cluster_uuid'] }
+
+    if params["dry_run"] == True:
+        result["vm_spec"] = vm_spec
+        return result
     
     # Create VM
     response = client.request(api_endpoint="v3/vms" , method="POST", data=json.dumps(vm_spec))
@@ -238,11 +255,12 @@ async def _create(params, client):
 
     while True:
         response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
-        if len(json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"]) > 0:
-            if json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"] != "":
-                result["vm_status"] = json.loads(response.content)["status"]
-                result["vm_ip_address"] = json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"]
-                break
+        if len(json.loads(response.content)["status"]["resources"]["nic_list"]) > 0:
+            if len(json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"]) > 0:
+                if json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"] != "":
+                    result["vm_status"] = json.loads(response.content)["status"]
+                    result["vm_ip_address"] = json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"]
+                    break
         time.sleep(5)
     
     result["vm_uuid"] = vm_uuid
