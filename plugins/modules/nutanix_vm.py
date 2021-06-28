@@ -58,7 +58,13 @@ import json
 import time
 import base64
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, NutanixApiError
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
+    NutanixApiClient, 
+    NutanixApiError, 
+    get_vm_uuid,
+    get_vm,
+    update_vm
+)
 
 async def main():
     # define available arguments/parameters a user can pass to the module
@@ -152,6 +158,90 @@ async def entry_point(module, client):
 
     return await func(module.params, client)
 
+
+async def update_vm_spec(params, vm, client):
+
+    nic_list = []
+    disk_list = []
+    vm_spec = vm["spec"]
+    spec_nic_list = vm_spec["resources"]["nic_list"]
+    spec_disk_list = vm_spec["resources"]["disk_list"]
+
+    param_disk_list = params['disk_list']
+    param_nic_list = params['nic_list']
+
+    scsi_counter=0
+    sata_counter=0
+    for i in range(len(param_disk_list)):
+        disk = param_disk_list[i]
+        if disk["adapter_type"] == "SCSI":
+            counter = scsi_counter
+            scsi_counter+=1
+        elif disk["adapter_type"] == "SATA":
+            counter = sata_counter
+            sata_counter+=1
+
+        if "data_source_uuid" in disk:
+            try:
+                spec_disk = spec_disk_list[i]
+                disk_list.append(spec_disk)
+            except IndexError:
+                disk_list.append({
+                "device_properties": {
+                    "disk_address": {
+                    "device_index": counter,
+                    "adapter_type": disk["adapter_type"]
+                    },
+                    "device_type": disk["device_type"]
+                },
+                "data_source_reference": {
+                    "kind": "image",
+                    "uuid": disk["data_source_uuid"]
+                }
+                })
+        else:
+            try:
+                spec_disk = spec_disk_list[i]
+                if spec_disk["disk_size_mib"] != disk["size_mib"]:
+                    spec_disk["disk_size_mib"] = disk["size_mib"]
+                disk_list.append(spec_disk)
+            except IndexError:
+                disk_list.append({
+                "device_properties": {
+                    "disk_address": {
+                    "device_index": counter,
+                    "adapter_type": disk["adapter_type"]
+                    },
+                    "device_type": disk["device_type"]
+                },
+                "disk_size_mib": disk["size_mib"]
+                })
+
+    for i in range(len(param_nic_list)):
+        try:
+            spec_nic = spec_nic_list[i]
+            nic_list.append(spec_nic)
+        except IndexError:
+            nic_list.append({
+                "nic_type": "NORMAL_NIC",
+                "vlan_mode": "ACCESS",
+                "subnet_reference": {
+                    "kind": "subnet",
+                    "uuid": param_nic_list[i]["uuid"]
+                },
+                "is_connected": True
+            })
+
+    vm["spec"]["resources"]["num_sockets"] = params['cpu']
+    vm["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
+    vm["spec"]["resources"]["memory_size_mib"] = params['memory']
+    vm["spec"]["resources"]["power_state"] = "ON"
+    vm["spec"]["resources"]["nic_list"] = nic_list
+    vm["spec"]["resources"]["disk_list"] = disk_list
+    vm["metadata"]["spec_version"] += 1
+
+    return vm
+
 async def _create(params, client):
 
     result = dict(
@@ -168,13 +258,13 @@ async def _create(params, client):
 
     for nic in params['nic_list']:
         nic_list.append({
-          "nic_type": "NORMAL_NIC",
-          "vlan_mode": "ACCESS",
-          "subnet_reference": {
-            "kind": "subnet",
-            "uuid": nic["uuid"]
-          },
-          "is_connected": True
+            "nic_type": "NORMAL_NIC",
+            "vlan_mode": "ACCESS",
+            "subnet_reference": {
+                "kind": "subnet",
+                "uuid": nic["uuid"]
+            },
+            "is_connected": True
         })
 
     scsi_counter=0
@@ -292,6 +382,69 @@ async def _delete(params, client):
     response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="DELETE", data=None)
     task_uuid = json.loads(response.content)["status"]["execution_context"]["task_uuid"]
 
+    result["task_uuid"] = task_uuid
+    result["changed"] = True
+
+    # Poll for task completion
+    while True:
+        response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
+        if json.loads(response.content)["status"] == "SUCCEEDED":
+            break
+        elif json.loads(response.content)["status"] == "FAILED":
+            result["failed"] = True
+            result["msg"] = json.loads(response.content)["error_detail"]
+            return result
+        time.sleep(5)
+
+    return result
+
+async def _update(params, client):
+
+    result = dict(
+        changed=False,
+        vm_spec={},
+        updated_vm_spec={},
+        task_uuid = ''
+    )
+
+    vm_uuid = await get_vm_uuid(params, client)
+
+    if not vm_uuid:
+        result["failed"] = True
+        result["msg"] = "Vm '%s' doesnot exists in the Cluster." % params["name"]
+        return result
+
+    vm_json = await get_vm(vm_uuid, client)
+
+    # Poweroff the VM
+    if vm_json["status"]["resources"]["power_state"] == "ON":
+
+        del vm_json["status"]
+        vm_json["spec"]["resources"]["power_state"] = "OFF"
+        vm_json["metadata"]["spec_version"] += 1
+
+        task_uuid = await update_vm(vm_uuid, vm_json, client)
+
+        # Poll for task completion
+        while True:
+            response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
+            if json.loads(response.content)["status"] == "SUCCEEDED":
+                break
+            elif json.loads(response.content)["status"] == "FAILED":
+                result["failed"] = True
+                result["msg"] = json.loads(response.content)["error_detail"]
+                return result
+            time.sleep(5)
+        vm_json["metadata"]["entity_version"] = "%d"% (int(vm_json["metadata"]["entity_version"]) + 1)
+
+    # Update the VM
+    if "status" in vm_json:
+        del vm_json["status"]
+    updated_vm_spec = await update_vm_spec(params, vm_json, client)
+    updated_vm_spec["spec"]["resources"]["power_state"] = "ON"
+    result["updated_vm_spec"] = updated_vm_spec
+
+    task_uuid = await update_vm(vm_uuid, updated_vm_spec, client)
     result["task_uuid"] = task_uuid
     result["changed"] = True
 
