@@ -143,6 +143,67 @@ def create_images(module, client, result):
 def list_images(client):
     return client.request(api_endpoint="v3/images/list", method="POST", data='{"offset": 0, "length": 100}')
 
+def delete_images(module, client, result):
+    batch_spec = {
+        "action_on_failure": "CONTINUE",
+        "execution_order": "NON_SEQUENTIAL",
+        "api_request_list":
+        [],
+        "api_version": "3.0"
+    }
+
+    image_spec = {
+        "operation": "DELETE",
+        "path_and_params": "/api/nutanix/v3/images/"
+    }
+
+    # Get image list of filtering out image uuid
+    image_list_response = list_images(client)
+    image_details = module.params.get("image_details")
+
+    image_uuid_list, image_list = [], []
+    for image in image_details:
+        image_name = image.get("image_name")
+        image_list.append(image_name)
+        if image_name:
+            for entity in image_list_response.json()["entities"]:
+                api_image_spec = copy.deepcopy(image_spec)
+                if image_name == entity["status"]["name"]:
+                    image_uuid = entity["metadata"]["uuid"]
+                    image_uuid_list.append(image_uuid)
+                    api_image_spec['path_and_params'] += image_uuid
+                    batch_spec['api_request_list'].append(api_image_spec)
+            if not image_uuid_list:
+                result["msg"] = f"Could not find UUID for image(s) {image_list}"
+                result["failed"] = True
+
+    image_delete_resp = client.request(api_endpoint="v3/batch", method="DELETE", data=json.dumps(batch_spec))
+    result["changed"] = True
+
+    task_uuid_list = []
+    for resp in image_delete_resp.json()['api_response_list']:
+        if resp['status'] == '202':
+            task_uuid_list.append(resp['api_response']['status']['execution_context']['task_uuid'])
+        else:
+            result["msg"] = resp
+            result["failed"] = True
+
+    if task_uuid_list:
+        for task_uuid in task_uuid_list:
+            tasks_state = None
+            while tasks_state == None:
+                task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
+                if task_resp.json()["status"] == "SUCCEEDED":
+                    tasks_state = "SUCCEEDED"
+                elif task_resp.json()["status"] == "FAILED":
+                    result["failed"] = True
+                    result["msg"] = task_resp.json()["error_detail"]
+                    tasks_state = "FAILED"
+                time.sleep(5)
+        # result["msg"]
+
+    return result
+
 def main():
     # Seed result dict
     result_init = dict(
@@ -155,6 +216,10 @@ def main():
     api_client = NutanixApiClient(**arg_spec.params)
     if arg_spec.params["state"] == "present":
         result = create_images(arg_spec, api_client, result_init)
+    elif arg_spec.params["state"] == "update":
+        result = update_image(arg_spec, api_client, result_init)
+    elif arg_spec.params["state"] == "absent":
+        result = delete_images(arg_spec, api_client, result_init)
 
     arg_spec.exit_json(**result)
 
