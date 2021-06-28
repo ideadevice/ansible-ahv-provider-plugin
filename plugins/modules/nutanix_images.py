@@ -59,6 +59,7 @@ def generate_argument_spec():
 
     return module
 
+
 def create_images(module, client, result):
     batch_spec = {
         "action_on_failure": "CONTINUE",
@@ -98,25 +99,22 @@ def create_images(module, client, result):
         image_name = image.get("image_name")
         image_type = image.get("image_type")
         source_uri = image.get("source_uri")
-        # api_image_spec['body']['spec']['name'] = image_name
         if image_name and image_type and source_uri:
-            api_image_spec['body']['spec']['name'] = image_name
-            api_image_spec['body']['spec']['resources']['image_type'] = image_type
-            api_image_spec['body']['spec']['resources']['source_uri'] = source_uri
-        batch_spec['api_request_list'].append(api_image_spec)
+            api_image_spec["body"]["spec"]["name"] = image_name
+            api_image_spec["body"]["spec"]["resources"]["image_type"] = image_type
+            api_image_spec["body"]["spec"]["resources"]["source_uri"] = source_uri
+        batch_spec["api_request_list"].append(api_image_spec)
 
     # Create Images
     image_create_resp = client.request(api_endpoint="v3/batch", method="POST", data=json.dumps(batch_spec))
 
-    # result["image_status"] = image_create_resp.json()
     result["changed"] = True
     result["msg"] = []
 
-    # task_uuid_list = []
-    for resp in image_create_resp.json()['api_response_list']:
-        if resp['status'] == '202':
-            image_list.append(resp['api_response']['spec']['name'])
-            task_uuid_list.append(resp['api_response']['status']['execution_context']['task_uuid'])
+    for resp in image_create_resp.json()["api_response_list"]:
+        if resp["status"] == '202':
+            image_list.append(resp["api_response"]["spec"]["name"])
+            task_uuid_list.append(resp["api_response"]["status"]["execution_context"]["task_uuid"])
         else:
             result["msg"].append(resp)
             result["failed"] = True
@@ -140,8 +138,73 @@ def create_images(module, client, result):
 
     return result
 
+
 def list_images(client):
     return client.request(api_endpoint="v3/images/list", method="POST", data='{"offset": 0, "length": 100}')
+
+
+def update_image(module, client, result):
+    image_list_response = list_images(client)
+
+    image_details = module.params.get("image_details")
+    task_uuid_list, image_list, updated_image_list, image_uuid_list = [], [], [], []
+    result["msg"] = []
+    image_count = 0
+
+    for image in image_details:
+        update = False
+        image_name = image.get("image_name")
+        updated_image_name = image.get("updated_image_name")
+        image_list.append(image_name)
+        if image_name and updated_image_name:
+            for entity in image_list_response.json()["entities"]:
+                if image_name == entity["status"]["name"] and image_count <= 1:
+                    image_uuid = entity["metadata"]["uuid"]
+                    # image_uuid_list.append(image_uuid)
+                    image_update_spec = entity
+                    del image_update_spec["status"]
+                    # image_update_spec["metadata"]["spec_version"] += 1
+                    image_update_spec["spec"]["name"] = updated_image_name
+                    update = True
+                    image_count += 1
+                elif image_count > 1:
+                    result["msg"] = f"Found multiple images with name {image_name}, specify image_uuid"
+                    result["failed"] = True
+                    update = False
+                    return result
+            if image_count == 0:
+                result["msg"] = f"Did not find any image with name {image_name}"
+                result["failed"] = True
+                return result
+            if not image_uuid_list:
+                result["msg"] = f"Could not find UUID for image(s) {image_list}"
+                result["failed"] = True
+                return result
+        if update:
+            # Update image
+            image_update_resp = client.request(api_endpoint=f"v3/images/{image_uuid}", method="PUT", data=json.dumps(image_update_spec))
+            del image_update_spec
+            if image_update_resp.ok:
+                task_uuid_list.append(image_update_resp.json()["status"]["execution_context"]["task_uuid"])
+            else:
+                result["msg"] = image_update_resp.json()
+                result["failed"] = True
+
+    if task_uuid_list:
+        for task_uuid in task_uuid_list:
+            tasks_state = None
+            while tasks_state == None:
+                task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
+                if task_resp.json()["status"] == "SUCCEEDED":
+                    tasks_state = "SUCCEEDED"
+                elif task_resp.json()["status"] == "FAILED":
+                    result["failed"] = True
+                    result["msg"] = task_resp.json()["error_detail"]
+                    tasks_state = "FAILED"
+                else:
+                    time.sleep(5)
+
+    return result
 
 def delete_images(module, client, result):
     batch_spec = {
@@ -171,8 +234,8 @@ def delete_images(module, client, result):
                 if image_name == entity["status"]["name"]:
                     image_uuid = entity["metadata"]["uuid"]
                     image_uuid_list.append(image_uuid)
-                    api_image_spec['path_and_params'] += image_uuid
-                    batch_spec['api_request_list'].append(api_image_spec)
+                    api_image_spec["path_and_params"] += image_uuid
+                    batch_spec["api_request_list"].append(api_image_spec)
             if not image_uuid_list:
                 result["msg"] = f"Could not find UUID for image(s) {image_list}"
                 result["failed"] = True
@@ -181,9 +244,9 @@ def delete_images(module, client, result):
     result["changed"] = True
 
     task_uuid_list = []
-    for resp in image_delete_resp.json()['api_response_list']:
-        if resp['status'] == '202':
-            task_uuid_list.append(resp['api_response']['status']['execution_context']['task_uuid'])
+    for resp in image_delete_resp.json()["api_response_list"]:
+        if resp["status"] == '202':
+            task_uuid_list.append(resp["api_response"]["status"]["execution_context"]["task_uuid"])
         else:
             result["msg"] = resp
             result["failed"] = True
@@ -200,7 +263,6 @@ def delete_images(module, client, result):
                     result["msg"] = task_resp.json()["error_detail"]
                     tasks_state = "FAILED"
                 time.sleep(5)
-        # result["msg"]
 
     return result
 
