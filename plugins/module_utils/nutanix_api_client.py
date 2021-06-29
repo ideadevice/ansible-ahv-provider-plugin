@@ -47,18 +47,18 @@ async def list_vms(filter, client):
     return json.loads(vm_list_response.content)
 
 async def get_vm_uuid(params, client):
-    length = 2
+    length = 100
     offset = 0
-    total_matches = 1
+    total_matches = 999
     vm_name = params['name']
-    filter = {"filter": "vm_name==%s" % vm_name }
     while offset < total_matches:
+        filter = {"filter": "vm_name==%s" % vm_name , "length": length, "offset": offset}
         vms_list = await list_vms(filter, client)
         for vm in vms_list["entities"]:
             if vm["status"]["name"] == vm_name:
                 return vm["metadata"]["uuid"]
 
-        total_matches = vms_list["total_matches"]
+        total_matches = vms_list["metadata"]["total_matches"]
         offset += length
     return None
 
