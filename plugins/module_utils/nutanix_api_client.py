@@ -40,3 +40,33 @@ class NutanixApiClient(object):
             return response
         else:
             raise NutanixApiError(f"Request failed to complete, response code {response.status_code}, content {response.content}")
+
+
+async def list_vms(filter, client):
+    vm_list_response = client.request(api_endpoint="v3/vms/list", method="POST", data=json.dumps(filter))
+    return json.loads(vm_list_response.content)
+
+async def get_vm_uuid(params, client):
+    length = 100
+    offset = 0
+    total_matches = 999
+    vm_name = params['name']
+    while offset < total_matches:
+        filter = {"filter": "vm_name==%s" % vm_name , "length": length, "offset": offset}
+        vms_list = await list_vms(filter, client)
+        for vm in vms_list["entities"]:
+            if vm["status"]["name"] == vm_name:
+                return vm["metadata"]["uuid"]
+
+        total_matches = vms_list["metadata"]["total_matches"]
+        offset += length
+    return None
+
+
+async def get_vm(vm_uuid, client):
+    get_virtual_machine = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
+    return json.loads(get_virtual_machine.content)
+
+async def update_vm(vm_uuid, data, client):
+    response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="PUT", data=json.dumps(data))
+    return json.loads(response.content)["status"]["execution_context"]["task_uuid"]
