@@ -42,7 +42,7 @@ def generate_argument_spec():
         pc_username=dict(type='str', required=True, fallback=(env_fallback, ["PC_USERNAME"])),
         pc_password=dict(type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
-        image_details=dict(type='list', required=True),
+        images=dict(type='list', required=True),
         state=dict(default='present', type='str'),
         data=dict(default="{}", type='str', required=False),
         validate_certs=dict(default=True, type='bool', required=False),
@@ -91,10 +91,10 @@ def create_images(module, client, result):
             }
     }
 
-    image_details = module.params.get("image_details")
+    images = module.params.get("images")
     task_uuid_list, image_list, created_image_list = [], [], []
 
-    for image in image_details:
+    for image in images:
         api_image_spec = copy.deepcopy(image_spec)
         image_name = image.get("image_name")
         image_type = image.get("image_type")
@@ -146,12 +146,12 @@ def list_images(client):
 def update_image(module, client, result):
     image_list_response = list_images(client)
 
-    image_details = module.params.get("image_details")
+    images = module.params.get("images")
     task_uuid_list, image_list, updated_image_list, image_uuid_list = [], [], [], []
     result["msg"] = []
     image_count = 0
 
-    for image in image_details:
+    for image in images:
         update = False
         image_name = image.get("image_name")
         updated_image_name = image.get("updated_image_name")
@@ -222,10 +222,10 @@ def delete_images(module, client, result):
 
     # Get image list of filtering out image uuid
     image_list_response = list_images(client)
-    image_details = module.params.get("image_details")
+    images = module.params.get("images")
 
     image_uuid_list, image_list = [], []
-    for image in image_details:
+    for image in images:
         image_name = image.get("image_name")
         image_list.append(image_name)
         if image_name:
