@@ -46,9 +46,6 @@ DOCUMENTATION = r'''
          - name: VALIDATE_CERTS
 '''
 
-import os
-import json
-
 from ansible.plugins.inventory import BaseInventoryPlugin, Constructable, Cacheable
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, NutanixApiError
 
