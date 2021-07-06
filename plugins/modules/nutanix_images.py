@@ -26,6 +26,7 @@ RETURN = r'''
 ## TO-DO
 '''
 
+import json
 import copy
 import time
 from ansible.module_utils.basic import env_fallback
@@ -33,7 +34,7 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient
 
 
-def generate_argument_spec():
+def generate_argument_spec(result):
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
         pc_hostname=dict(type='str', required=True,
@@ -283,7 +284,7 @@ def main():
     )
 
     # Generate arg spec and call function
-    arg_spec = generate_argument_spec()
+    arg_spec = generate_argument_spec(result_init)
 
     # Instantiate api client
     api_client = NutanixApiClient(arg_spec)
