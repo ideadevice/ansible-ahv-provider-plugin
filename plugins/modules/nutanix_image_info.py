@@ -57,7 +57,6 @@ RETURN = r'''
 ## TO-DO
 '''
 
-import json
 from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient
@@ -66,9 +65,12 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 def get_image_list():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
-        pc_hostname=dict(type='str', required=True, fallback=(env_fallback, ["PC_HOSTNAME"])),
-        pc_username=dict(type='str', required=True, fallback=(env_fallback, ["PC_USERNAME"])),
-        pc_password=dict(type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])),
+        pc_hostname=dict(type='str', required=True,
+                         fallback=(env_fallback, ["PC_HOSTNAME"])),
+        pc_username=dict(type='str', required=True,
+                         fallback=(env_fallback, ["PC_USERNAME"])),
+        pc_password=dict(type='str', required=True, no_log=True,
+                         fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
         image_name=dict(type='str', required=False),
         data=dict(default="{}", type='str', required=False),
@@ -95,11 +97,12 @@ def get_image_list():
 
     # Get Image list
     data = module.params['data']
-    image_list_response = client.request(api_endpoint="v3/images/list", method="POST", data=data)
+    image_list_response = client.request(
+        api_endpoint="v3/images/list", method="POST", data=data)
 
     image_name = module.params.get("image_name")
     spec_list, status_list, image_list = [], [], []
-    for entity in json.loads(image_list_response.content)["entities"]:
+    for entity in image_list_response.json()["entities"]:
         if image_name == entity["status"]["name"]:
             result["image"] = entity
             result["image_uuid"] = entity["metadata"]["uuid"]
@@ -120,6 +123,7 @@ def get_image_list():
 
 def main():
     get_image_list()
+
 
 if __name__ == '__main__':
     main()

@@ -56,6 +56,7 @@ except ImportError:
 from ansible.errors import AnsibleError
 from ansible.plugins.inventory import BaseInventoryPlugin
 
+
 class InventoryModule(BaseInventoryPlugin):
     '''Nutanix VM dynamic invetory parser for ansible'''
 
@@ -80,7 +81,7 @@ class InventoryModule(BaseInventoryPlugin):
         '''Get a list of existing VMs'''
         api_url = f"https://{self.pc_hostname}:{self.pc_port}/api/nutanix/v3/vms/list"
         auth = (self.pc_username, self.pc_password)
-        headers = {'Content-Type': 'application/json',  'Accept':'application/json'}
+        headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
         payload = '{"offset": 0, "length": 100}'
 
         session = self._get_create_session()
@@ -103,12 +104,12 @@ class InventoryModule(BaseInventoryPlugin):
 
             # Get VM IP
             for nics in entity["status"]["resources"]["nic_list"]:
-              if nics["nic_type"] == "NORMAL_NIC" and nic_count == 0:
-                  for endpoint in nics["ip_endpoint_list"]:
-                      if endpoint["type"] == "ASSIGNED":
-                          vm_ip = endpoint["ip"]
-                          nic_count += 1
-                          continue
+                if nics["nic_type"] == "NORMAL_NIC" and nic_count == 0:
+                    for endpoint in nics["ip_endpoint_list"]:
+                        if endpoint["type"] == "ASSIGNED":
+                            vm_ip = endpoint["ip"]
+                            nic_count += 1
+                            continue
 
             # Add inventory groups and hosts to inventory groups
             self.inventory.add_group(cluster)
@@ -121,7 +122,7 @@ class InventoryModule(BaseInventoryPlugin):
             for var in vars_to_remove:
                 try:
                     del entity["status"]["resources"][var]
-                except:
+                except KeyError:
                     pass
             for key, value in entity["status"]["resources"].items():
                 self.inventory.set_variable(vm_name, key, value)

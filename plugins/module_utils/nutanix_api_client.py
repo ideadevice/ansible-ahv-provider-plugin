@@ -16,12 +16,11 @@ try:
 except ImportError:
     HAS_REQUESTS = False
     REQUESTS_IMPORT_ERROR = traceback.format_exc()
-else:
-    HAS_REQUESTS = True
 
 
 class NutanixApiError(Exception):
     pass
+
 
 class NutanixApiClient(object):
     """Nutanix Rest API client"""
@@ -44,9 +43,11 @@ class NutanixApiClient(object):
 
     def request(self, api_endpoint, method, data, timeout=20):
         self.api_url = f"{self.api_base}/{api_endpoint}"
-        headers = {'Content-Type': 'application/json',  'Accept':'application/json'}
+        headers = {'Content-Type': 'application/json',
+                   'Accept': 'application/json'}
         try:
-            response = self.session.request(method=method, url=self.api_url, auth=self.auth, data=data, headers=headers, verify=self.validate_certs, timeout=timeout)
+            response = self.session.request(method=method, url=self.api_url, auth=self.auth,
+                                            data=data, headers=headers, verify=self.validate_certs, timeout=timeout)
         except requests.exceptions.RequestException as cerr:
             raise NutanixApiError(f"Request failed {str(cerr)}")
 
@@ -63,8 +64,10 @@ class NutanixApiClient(object):
 
 
 async def list_vms(filter, client):
-    vm_list_response = client.request(api_endpoint="v3/vms/list", method="POST", data=json.dumps(filter))
+    vm_list_response = client.request(
+        api_endpoint="v3/vms/list", method="POST", data=json.dumps(filter))
     return json.loads(vm_list_response.content)
+
 
 async def get_vm_uuid(params, client):
     length = 100
@@ -72,7 +75,8 @@ async def get_vm_uuid(params, client):
     total_matches = 999
     vm_name = params['name']
     while offset < total_matches:
-        filter = {"filter": "vm_name==%s" % vm_name , "length": length, "offset": offset}
+        filter = {"filter": "vm_name==%s" %
+                  vm_name, "length": length, "offset": offset}
         vms_list = await list_vms(filter, client)
         for vm in vms_list["entities"]:
             if vm["status"]["name"] == vm_name:
@@ -84,9 +88,12 @@ async def get_vm_uuid(params, client):
 
 
 async def get_vm(vm_uuid, client):
-    get_virtual_machine = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
+    get_virtual_machine = client.request(
+        api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
     return json.loads(get_virtual_machine.content)
 
+
 async def update_vm(vm_uuid, data, client):
-    response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="PUT", data=json.dumps(data))
+    response = client.request(api_endpoint="v3/vms/%s" %
+                              vm_uuid, method="PUT", data=json.dumps(data))
     return json.loads(response.content)["status"]["execution_context"]["task_uuid"]

@@ -26,7 +26,6 @@ RETURN = r'''
 ## TO-DO
 '''
 
-import json
 import copy
 import time
 from ansible.module_utils.basic import env_fallback
@@ -37,9 +36,12 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 def generate_argument_spec():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
-        pc_hostname=dict(type='str', required=True, fallback=(env_fallback, ["PC_HOSTNAME"])),
-        pc_username=dict(type='str', required=True, fallback=(env_fallback, ["PC_USERNAME"])),
-        pc_password=dict(type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])),
+        pc_hostname=dict(type='str', required=True,
+                         fallback=(env_fallback, ["PC_HOSTNAME"])),
+        pc_username=dict(type='str', required=True,
+                         fallback=(env_fallback, ["PC_USERNAME"])),
+        pc_password=dict(type='str', required=True, no_log=True,
+                         fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
         images=dict(type='list', required=True),
         state=dict(default='present', type='str'),
@@ -105,7 +107,8 @@ def create_images(module, client, result):
         batch_spec["api_request_list"].append(api_image_spec)
 
     # Create Images
-    image_create_resp = client.request(api_endpoint="v3/batch", method="POST", data=json.dumps(batch_spec))
+    image_create_resp = client.request(
+        api_endpoint="v3/batch", method="POST", data=json.dumps(batch_spec))
 
     result["changed"] = True
     result["msg"] = []
@@ -113,7 +116,8 @@ def create_images(module, client, result):
     for resp in image_create_resp.json()["api_response_list"]:
         if resp["status"] == '202':
             image_list.append(resp["api_response"]["spec"]["name"])
-            task_uuid_list.append(resp["api_response"]["status"]["execution_context"]["task_uuid"])
+            task_uuid_list.append(
+                resp["api_response"]["status"]["execution_context"]["task_uuid"])
         else:
             result["msg"].append(resp)
             result["failed"] = True
@@ -124,7 +128,8 @@ def create_images(module, client, result):
             while tasks_state == None:
                 task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
                 if task_resp.json()["status"] == "SUCCEEDED":
-                    created_image_list.append(image_list[task_uuid_list.index(task_uuid)])
+                    created_image_list.append(
+                        image_list[task_uuid_list.index(task_uuid)])
                     tasks_state = "SUCCEEDED"
                 elif task_resp.json()["status"] == "FAILED":
                     result["failed"] = True
@@ -184,7 +189,8 @@ def update_image(module, client, result):
             image_update_resp = client.request(api_endpoint=f"v3/images/{image_uuid}", method="PUT", data=json.dumps(image_update_spec))
             del image_update_spec
             if image_update_resp.ok:
-                task_uuid_list.append(image_update_resp.json()["status"]["execution_context"]["task_uuid"])
+                task_uuid_list.append(image_update_resp.json()[
+                                      "status"]["execution_context"]["task_uuid"])
             else:
                 result["msg"] = image_update_resp.json()
                 result["failed"] = True
@@ -204,6 +210,7 @@ def update_image(module, client, result):
                     time.sleep(5)
 
     return result
+
 
 def delete_images(module, client, result):
     batch_spec = {
@@ -239,13 +246,15 @@ def delete_images(module, client, result):
                 result["msg"] = f"Could not find UUID for image(s) {image_list}"
                 result["failed"] = True
 
-    image_delete_resp = client.request(api_endpoint="v3/batch", method="DELETE", data=json.dumps(batch_spec))
+    image_delete_resp = client.request(
+        api_endpoint="v3/batch", method="DELETE", data=json.dumps(batch_spec))
     result["changed"] = True
 
     task_uuid_list = []
     for resp in image_delete_resp.json()["api_response_list"]:
         if resp["status"] == '202':
-            task_uuid_list.append(resp["api_response"]["status"]["execution_context"]["task_uuid"])
+            task_uuid_list.append(
+                resp["api_response"]["status"]["execution_context"]["task_uuid"])
         else:
             result["msg"] = resp
             result["failed"] = True
@@ -265,14 +274,17 @@ def delete_images(module, client, result):
 
     return result
 
+
 def main():
     # Seed result dict
     result_init = dict(
         changed=False,
         ansible_facts=dict(),
     )
+
     # Generate arg spec and call function
     arg_spec = generate_argument_spec()
+
     # Instantiate api client
     api_client = NutanixApiClient(arg_spec)
     if arg_spec.params["state"] == "present":
@@ -283,6 +295,7 @@ def main():
         result = delete_images(arg_spec, api_client, result_init)
 
     arg_spec.exit_json(**result)
+
 
 if __name__ == '__main__':
     main()
