@@ -12,7 +12,7 @@ DOCUMENTATION = r'''
       plugin:
         description: Name of the plugin
         required: true
-        choices: ['nutanix', 'nutanix.nutanix.nutanix']
+        choices: ['nutanix_vm_inventory', 'nutanix.nutanix.nutanix_vm_inventory']
       pc_hostname:
         description: PC hostname or IP address
         required: true
@@ -49,7 +49,7 @@ from ansible.plugins.inventory import BaseInventoryPlugin, Constructable, Cachea
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, NutanixApiError
 
 class InventoryModule(BaseInventoryPlugin):
-    NAME = 'nutanix.nutanix.nutanix'
+    NAME = 'nutanix.nutanix.nutanix_vm_inventory'
 
     def _create_client(self):
         self.client = NutanixApiClient(self.pc_hostname, self.pc_username, self.pc_password, self.pc_port, self.validate_certs)
