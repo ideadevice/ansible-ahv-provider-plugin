@@ -125,7 +125,7 @@ def create_images(module, client, result):
     if task_uuid_list:
         for task_uuid in task_uuid_list:
             tasks_state = None
-            while tasks_state == None:
+            while tasks_state is None:
                 task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
                 if task_resp.json()["status"] == "SUCCEEDED":
                     created_image_list.append(
@@ -198,7 +198,7 @@ def update_image(module, client, result):
     if task_uuid_list:
         for task_uuid in task_uuid_list:
             tasks_state = None
-            while tasks_state == None:
+            while tasks_state is None:
                 task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
                 if task_resp.json()["status"] == "SUCCEEDED":
                     tasks_state = "SUCCEEDED"
@@ -262,7 +262,7 @@ def delete_images(module, client, result):
     if task_uuid_list:
         for task_uuid in task_uuid_list:
             tasks_state = None
-            while tasks_state == None:
+            while tasks_state is None:
                 task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
                 if task_resp.json()["status"] == "SUCCEEDED":
                     tasks_state = "SUCCEEDED"

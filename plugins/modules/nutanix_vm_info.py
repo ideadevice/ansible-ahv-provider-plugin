@@ -80,16 +80,17 @@ from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
     list_vms
-    )
+)
+
 
 async def set_list_payload(data):
     length = 100
     offset = 0
     filter = ''
 
-    payload = { "filter": filter, "length": length, "offset": offset }
+    payload = {"filter": filter, "length": length, "offset": offset}
 
-    if  data and "length" in data:
+    if data and "length" in data:
         payload["length"] = data["length"]
     if data and "offset" in data:
         payload["offset"] = data["offset"]
@@ -106,9 +107,12 @@ async def set_list_payload(data):
 async def get_vm_list():
 
     module_args = dict(
-        pc_hostname=dict(type='str', required=True, fallback=(env_fallback, ["PC_HOSTNAME"])),
-        pc_username=dict(type='str', required=True, fallback=(env_fallback, ["PC_USERNAME"])),
-        pc_password=dict(type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])),
+        pc_hostname=dict(type='str', required=True,
+                         fallback=(env_fallback, ["PC_HOSTNAME"])),
+        pc_username=dict(type='str', required=True,
+                         fallback=(env_fallback, ["PC_USERNAME"])),
+        pc_password=dict(type='str', required=True, no_log=True,
+                         fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
         data=dict(
             type='dict',
@@ -118,7 +122,7 @@ async def get_vm_list():
             offset=dict(type='int'),
             sort_attribute=dict(type='str'),
             sort_order=dict(type='str'),
-            ),
+        ),
         validate_certs=dict(default=True, type='bool', required=False),
     )
 
@@ -162,7 +166,6 @@ async def get_vm_list():
 
         total_matches = vms_list["metadata"]["total_matches"]
         offset += length
-
 
     result["vms_spec"] = spec_list
     result["vm_status"] = status_list
