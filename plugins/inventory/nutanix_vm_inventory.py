@@ -1,5 +1,4 @@
-#!/usr/bin/python
-
+#
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
