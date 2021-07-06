@@ -12,7 +12,7 @@ short_description: Basic vm info module which supports vm list operation
 
 version_added: "0.0.1"
 
-description: Longer description for nutanix info module.
+description: List Nutanix vms and fetch vm info
 
 options:
     pc_hostname:
@@ -78,8 +78,7 @@ import json
 from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
-    NutanixApiClient, 
-    NutanixApiError,
+    NutanixApiClient,
     list_vms
     )
 
@@ -143,7 +142,7 @@ async def get_vm_list():
         module.exit_json(**result)
 
     # Instantiate api client
-    client = NutanixApiClient(**module.params)
+    client = NutanixApiClient(module)
 
     # List VMs
     spec_list, status_list, vm_list, meta_list = [], [], [], []
