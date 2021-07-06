@@ -59,8 +59,7 @@ import time
 import base64
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
-    NutanixApiClient, 
-    NutanixApiError, 
+    NutanixApiClient,
     get_vm_uuid,
     get_vm,
     update_vm
@@ -87,11 +86,11 @@ async def main():
         cluster_uuid=dict(type='str', required=True),
         dry_run=dict(type='bool', required=False),
         disk_list=dict(
-            type='list', 
-            required=True, 
+            type='list',
+            required=True,
             data_source_uuid=dict(
                 type='str'
-            ), 
+            ),
             size_mib=dict(
                 type='int'
             ),
@@ -105,16 +104,16 @@ async def main():
             )
         ),
         nic_list=dict(
-            type='list', 
-            required=True, 
+            type='list',
+            required=True,
             uuid=dict(
-                type='str', 
+                type='str',
                 required=True
             )
         ),
         state=dict(
-            default="present", 
-            type='str', 
+            default="present",
+            type='str',
             choices=[
             "present",
             "absent",
@@ -141,7 +140,7 @@ async def main():
         module.fail_json("pc_password cannot be empty")
 
     # Instantiate api client
-    client = NutanixApiClient(**module.params)
+    client = NutanixApiClient(module)
     result = await entry_point(module, client)
     module.exit_json(**result)
 
@@ -276,7 +275,7 @@ async def _create(params, client):
         elif disk["adapter_type"] == "SATA":
             counter = sata_counter
             sata_counter+=1
-        
+
         if "data_source_uuid" in disk:
             disk_list.append({
             "device_properties": {
@@ -326,7 +325,7 @@ async def _create(params, client):
     if params["dry_run"] == True:
         result["vm_spec"] = vm_spec
         return result
-    
+
     # Create VM
     response = client.request(api_endpoint="v3/vms" , method="POST", data=json.dumps(vm_spec))
     task_uuid = json.loads(response.content)["status"]["execution_context"]["task_uuid"]
@@ -352,7 +351,7 @@ async def _create(params, client):
                     result["vm_ip_address"] = json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"]
                     break
         time.sleep(5)
-    
+
     result["vm_uuid"] = vm_uuid
     result["changed"] = True
 

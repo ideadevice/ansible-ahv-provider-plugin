@@ -6,12 +6,18 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 import json
+import traceback
+from ansible.module_utils.basic import missing_required_lib
 
 try:
     import requests
     import requests.exceptions
-except Exception as e:
-    raise Exception(f"Failed to import: {e}")
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+    REQUESTS_IMPORT_ERROR = traceback.format_exc()
+else:
+    HAS_REQUESTS = True
 
 
 class NutanixApiError(Exception):
@@ -19,12 +25,20 @@ class NutanixApiError(Exception):
 
 class NutanixApiClient(object):
     """Nutanix Rest API client"""
-    def __init__(self, pc_hostname, pc_username, pc_password, pc_port, validate_certs, **kwargs):
+    def __init__(self, module):
+        self.module = module
+        pc_hostname = module.params["pc_hostname"]
+        pc_username = module.params["pc_username"]
+        pc_password = module.params["pc_password"]
+        pc_port = module.params["pc_port"]
+        self.validate_certs = module.params["validate_certs"]
         self.api_base = f"https://{pc_hostname}:{pc_port}/api/nutanix"
         self.auth = (pc_username, pc_password)
-        self.validate_certs = validate_certs
+        # Ensure that all deps are present
+        self.check_dependencies()
+        # Create session
         self.session = requests.Session()
-        if not validate_certs:
+        if not self.validate_certs:
             from urllib3.exceptions import InsecureRequestWarning
             requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
@@ -40,6 +54,12 @@ class NutanixApiClient(object):
             return response
         else:
             raise NutanixApiError(f"Request failed to complete, response code {response.status_code}, content {response.content}")
+
+    def check_dependencies(self):
+        if not HAS_REQUESTS:
+            self.module.fail_json(
+                msg=missing_required_lib('requests'),
+                exception=REQUESTS_IMPORT_ERROR)
 
 
 async def list_vms(filter, client):

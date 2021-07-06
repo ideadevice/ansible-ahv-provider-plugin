@@ -60,7 +60,7 @@ RETURN = r'''
 import json
 from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, NutanixApiError
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient
 
 
 def get_image_list():
@@ -91,7 +91,7 @@ def get_image_list():
         module.exit_json(**result)
 
     # Instantiate api client
-    client = NutanixApiClient(**module.params)
+    client = NutanixApiClient(module)
 
     # Get Image list
     data = module.params['data']

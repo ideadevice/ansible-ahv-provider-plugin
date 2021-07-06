@@ -8,13 +8,12 @@ DOCUMENTATION = r'''
 ---
 module: nutanix_images
 
-short_description: images module which supports image crud operations
+short_description: Images module which supports image crud operations
 
 version_added: "0.0.1"
 
-description:
+description: Create, update and delete Nutanix images
 
-##TO-DO
 author:
     - Balu George (@balugeorge)
 '''
@@ -32,7 +31,7 @@ import copy
 import time
 from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, NutanixApiError
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient
 
 
 def generate_argument_spec():
@@ -275,7 +274,7 @@ def main():
     # Generate arg spec and call function
     arg_spec = generate_argument_spec()
     # Instantiate api client
-    api_client = NutanixApiClient(**arg_spec.params)
+    api_client = NutanixApiClient(arg_spec)
     if arg_spec.params["state"] == "present":
         result = create_images(arg_spec, api_client, result_init)
     elif arg_spec.params["state"] == "update":
