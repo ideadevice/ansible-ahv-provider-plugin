@@ -61,8 +61,8 @@ EXAMPLES = r'''
     pc_password: {{ pc_password }}
     pc_port: 9440
     validate_certs: False
-    data: 
-        filter: "vm_name==testvm"
+    data:
+        filter: "vm_name=={{ vm_name }}"
         offset: 0
         length: 100
   register: result
