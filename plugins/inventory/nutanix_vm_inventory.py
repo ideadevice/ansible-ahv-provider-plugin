@@ -94,7 +94,7 @@ class InventoryModule(BaseInventoryPlugin):
     def verify_file(self, path):
         valid = False
         if super(InventoryModule, self).verify_file(path):
-            if path.endswith(('nutanix.yaml', 'nutanix.yml')):
+            if path.endswith(('nutanix.yaml', 'nutanix.yml', 'nutanix_host_inventory.yaml', 'nutanix_host_inventory.yml')):
                 valid = True
         return valid
 
