@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
@@ -36,6 +37,17 @@ options:
         type: str
         default: 9440
         required: False
+    image_name:
+        description:
+        - Image name
+        type: str
+        required: False
+    validate_certs:
+        description:
+        - Set value to C(False) to skip validation for self signed certificates
+        - This is not recommended for production setup
+        default: True
+        type: bool
 author:
     - Balu George (@balugeorge)
 '''
@@ -43,14 +55,14 @@ author:
 EXAMPLES = r'''
 - name: List images
   nutanix.nutanix.nutanix_image_info:
-    pc_hostname: {{ pc_hostname }}
-    pc_username: {{ pc_username }}
-    pc_password: {{ pc_password }}
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
     pc_port: 9440
     validate_certs: False
   register: result
 - debug:
-    var: {{ result.image }}
+    var: "{{ result.image }}"
 '''
 
 RETURN = r'''
@@ -73,7 +85,6 @@ def get_image_list():
                          fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
         image_name=dict(type='str', required=False),
-        data=dict(default="{}", type='str', required=False),
         validate_certs=dict(default=True, type='bool', required=False),
     )
 
@@ -95,8 +106,11 @@ def get_image_list():
     # Instantiate api client
     client = NutanixApiClient(module)
 
+    # Images v3 api doesn't support filters
+    # Empty object passed as payload due to lack of filter support
+    data = "{}"
+
     # Get Image list
-    data = module.params['data']
     image_list_response = client.request(
         api_endpoint="v3/images/list", method="POST", data=data)
 

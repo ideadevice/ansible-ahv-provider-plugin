@@ -1,5 +1,6 @@
-#
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
@@ -40,7 +41,9 @@ DOCUMENTATION = r'''
         env:
          - name: PC_PORT
       validate_certs:
-        description: Set to C(False) to ignore
+        description:
+        - Set value to C(False) to skip validation for self signed certificates
+        - This is not recommended for production setup
         default: True
         type: boolean
         env:

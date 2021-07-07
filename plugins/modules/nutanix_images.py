@@ -1,6 +1,8 @@
 #!/usr/bin/python
 
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
+# GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
@@ -14,12 +16,87 @@ version_added: "0.0.1"
 
 description: Create, update and delete Nutanix images
 
+options:
+    pc_hostname:
+        description:
+        - PC hostname or IP address
+        type: str
+        required: True
+    pc_username:
+        description:
+        - PC username
+        type: str
+        required: True
+    pc_password:
+        description:
+        - PC password
+        required: True
+        type: str
+    pc_port:
+        description:
+        - PC port
+        type: str
+        default: 9440
+        required: False
+    images:
+        description:
+        - Image details
+        type: list
+        elements: dict
+        suboptions:
+            image_name:
+                description:
+                - Name of the image
+                type: str
+            image_type:
+                description:
+                - Image type, specify ISO_IMAGE or DISK_IMAGE
+                type: str
+            source_uri:
+                description:
+                - Image url
+                type: str
+        required: True
+    validate_certs:
+        description:
+        - Set value to C(False) to skip validation for self signed certificates
+        - This is not recommended for production setup
+        type: bool
+        default: True
+    state:
+        description:
+        - Specify state of image
+        - If C(state) is set to C(present) the image is created, nutanix supports multiple images with the same name
+        - If C(state) is set to C(absent) and the image is present, all images with the specified name are removed
+        type: str
+        default: present
 author:
     - Balu George (@balugeorge)
 '''
 
 EXAMPLES = r'''
-## TO-DO
+- name: List images
+  nutanix.nutanix.nutanix_images:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    images:
+    - image_name: "{{ image_name }}"
+      image_type: "{{ image_type }}"
+      source_uri: "{{ source_uri }}"
+    validate_certs: False
+    state: present
+  register: result
+  async: 600
+  poll: 0
+- name: Wait for image creation
+  async_status:
+    jid: "{{ result.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 30
+  delay: 5
 '''
 
 RETURN = r'''
@@ -44,9 +121,17 @@ def generate_argument_spec(result):
         pc_password=dict(type='str', required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
-        images=dict(type='list', required=True),
+        images=dict(
+            type='list',
+            required=True,
+            elements='dict',
+            options=dict(
+                image_name=dict(type='str'),
+                image_type=dict(type='str'),
+                source_uri=dict(type='str')
+            )
+        ),
         state=dict(default='present', type='str'),
-        data=dict(default="{}", type='str', required=False),
         validate_certs=dict(default=True, type='bool', required=False),
     )
 
