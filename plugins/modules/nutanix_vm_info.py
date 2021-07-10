@@ -85,7 +85,7 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 )
 
 
-async def set_list_payload(data):
+def set_list_payload(data):
     length = 100
     offset = 0
     filter = ''
@@ -106,7 +106,7 @@ async def set_list_payload(data):
     return payload
 
 
-async def get_vm_list():
+def get_vm_list():
 
     module_args = dict(
         pc_hostname=dict(type='str', required=True,
@@ -152,14 +152,14 @@ async def get_vm_list():
 
     # List VMs
     spec_list, status_list, vm_list, meta_list = [], [], [], []
-    data = await set_list_payload(module.params['data'])
+    data = set_list_payload(module.params['data'])
     length = data["length"]
     offset = data["offset"]
     total_matches = 99999
 
     while offset < total_matches:
         data["offset"] = offset
-        vms_list = await list_vms(data, client)
+        vms_list = list_vms(data, client)
         for entity in vms_list["entities"]:
             spec_list.append(entity["spec"])
             status_list.append(entity["status"])
@@ -178,12 +178,9 @@ async def get_vm_list():
     module.exit_json(**result)
 
 
-async def main():
-    await get_vm_list()
+def main():
+    get_vm_list()
 
 
-if __name__ == "__main__":
-    import asyncio
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+if __name__ == '__main__':
+    main()

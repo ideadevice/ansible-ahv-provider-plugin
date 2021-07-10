@@ -67,7 +67,7 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     update_vm
 )
 
-async def main():
+def main():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
         pc_hostname=dict(
@@ -143,10 +143,10 @@ async def main():
 
     # Instantiate api client
     client = NutanixApiClient(module)
-    result = await entry_point(module, client)
+    result = entry_point(module, client)
     module.exit_json(**result)
 
-async def entry_point(module, client):
+def entry_point(module, client):
 
     if module.params["state"] == "present":
         operation = "create"
@@ -157,10 +157,10 @@ async def entry_point(module, client):
 
     func = globals()["_" + operation]
 
-    return await func(module.params, client)
+    return func(module.params, client)
 
 
-async def update_vm_spec(params, vm, client):
+def update_vm_spec(params, vm, client):
 
     nic_list = []
     disk_list = []
@@ -243,7 +243,7 @@ async def update_vm_spec(params, vm, client):
 
     return vm
 
-async def _create(params, client):
+def _create(params, client):
 
     result = dict(
         changed=False,
@@ -359,7 +359,7 @@ async def _create(params, client):
 
     return result
 
-async def _delete(params, client):
+def _delete(params, client):
 
     vm_uuid = ''
 
@@ -399,7 +399,7 @@ async def _delete(params, client):
 
     return result
 
-async def _update(params, client):
+def _update(params, client):
 
     result = dict(
         changed=False,
@@ -408,14 +408,14 @@ async def _update(params, client):
         task_uuid = ''
     )
 
-    vm_uuid = await get_vm_uuid(params, client)
+    vm_uuid = get_vm_uuid(params, client)
 
     if not vm_uuid:
         result["failed"] = True
         result["msg"] = "Vm '%s' doesnot exists in the Cluster." % params["name"]
         return result
 
-    vm_json = await get_vm(vm_uuid, client)
+    vm_json = get_vm(vm_uuid, client)
 
     # Poweroff the VM
     if vm_json["status"]["resources"]["power_state"] == "ON":
@@ -424,7 +424,7 @@ async def _update(params, client):
         vm_json["spec"]["resources"]["power_state"] = "OFF"
         vm_json["metadata"]["spec_version"] += 1
 
-        task_uuid = await update_vm(vm_uuid, vm_json, client)
+        task_uuid = update_vm(vm_uuid, vm_json, client)
 
         # Poll for task completion
         while True:
@@ -441,11 +441,11 @@ async def _update(params, client):
     # Update the VM
     if "status" in vm_json:
         del vm_json["status"]
-    updated_vm_spec = await update_vm_spec(params, vm_json, client)
+    updated_vm_spec = update_vm_spec(params, vm_json, client)
     updated_vm_spec["spec"]["resources"]["power_state"] = "ON"
     result["updated_vm_spec"] = updated_vm_spec
 
-    task_uuid = await update_vm(vm_uuid, updated_vm_spec, client)
+    task_uuid = update_vm(vm_uuid, updated_vm_spec, client)
     result["task_uuid"] = task_uuid
     result["changed"] = True
 
@@ -462,8 +462,5 @@ async def _update(params, client):
 
     return result
 
-if __name__ == "__main__":
-    import asyncio
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+if __name__ == '__main__':
+    main()
