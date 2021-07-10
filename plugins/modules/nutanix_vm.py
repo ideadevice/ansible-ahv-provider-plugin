@@ -82,6 +82,7 @@ def main():
         pc_port=dict(default="9440", type='str', required=False),
         validate_certs=dict(default=True, type='bool'),
         name=dict(type='str', required=True),
+        vm_uuid=dict(type='str', required=False),
         cpu=dict(type='int', required=True),
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
@@ -119,9 +120,20 @@ def main():
             choices=[
             "present",
             "absent",
-            "update"
+            "poweron",
+            "poweroff"
             ]),
-        guest_customization=dict(type='dict', required=False),
+        guest_customization=dict(
+            type='dict', required=False,
+            cloud_init=dict(
+                type='str', 
+                required=True
+                ),
+            sysprep=dict(
+                type='str', 
+                required=True
+                ),
+        ),
         force_update=dict(default=False, type='bool', required=False),
     )
 
@@ -159,6 +171,78 @@ def entry_point(module, client):
 
     return func(module.params, client)
 
+def create_vm_spec(params, vm_spec, client):
+    nic_list = []
+    disk_list = []
+
+    for nic in params['nic_list']:
+        nic_list.append({
+            "nic_type": "NORMAL_NIC",
+            "vlan_mode": "ACCESS",
+            "subnet_reference": {
+                "kind": "subnet",
+                "uuid": nic["uuid"]
+            },
+            "is_connected": True
+        })
+
+    scsi_counter=0
+    sata_counter=0
+    for disk in params['disk_list']:
+        if disk["adapter_type"] == "SCSI":
+            counter = scsi_counter
+            scsi_counter+=1
+        elif disk["adapter_type"] == "SATA":
+            counter = sata_counter
+            sata_counter+=1
+
+        if "data_source_uuid" in disk:
+            disk_list.append({
+            "device_properties": {
+                "disk_address": {
+                "device_index": counter,
+                "adapter_type": disk["adapter_type"]
+                },
+                "device_type": disk["device_type"]
+            },
+            "data_source_reference": {
+                "kind": "image",
+                "uuid": disk["data_source_uuid"]
+            }
+            })
+        else:
+            disk_list.append({
+            "device_properties": {
+                "disk_address": {
+                "device_index": counter,
+                "adapter_type": disk["adapter_type"]
+                },
+                "device_type": disk["device_type"]
+            },
+            "disk_size_mib": disk["size_mib"]
+            })
+
+    vm_spec["spec"]["name"] = params['name']
+    vm_spec["spec"]["resources"]["num_sockets"] = params['cpu']
+    vm_spec["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
+    vm_spec["spec"]["resources"]["memory_size_mib"] = params['memory']
+    vm_spec["spec"]["resources"]["power_state"] = "ON"
+    vm_spec["spec"]["resources"]["nic_list"] = nic_list
+    vm_spec["spec"]["resources"]["disk_list"] = disk_list
+
+    if params["guest_customization"]:
+        if "cloud_init" in params["guest_customization"]:
+            cloud_init_encoded = base64.b64encode(params["guest_customization"]["cloud_init"].encode('ascii'))
+            vm_spec["spec"]["resources"]["guest_customization"] = {
+                    "cloud_init": {
+                        "user_data" : cloud_init_encoded.decode('ascii')
+                        }
+                }
+
+
+    vm_spec["spec"]["cluster_reference"] = { "kind": "cluster", "uuid": params['cluster_uuid'] }
+
+    return vm_spec
 
 def update_vm_spec(params, vm, client):
 
@@ -245,6 +329,11 @@ def update_vm_spec(params, vm, client):
 
 def _create(params, client):
 
+    vm_uuid = None
+
+    if "vm_uuid" in params:
+        vm_uuid = params["vm_uuid"]
+
     result = dict(
         changed=False,
         vm_uuid='',
@@ -252,77 +341,21 @@ def _create(params, client):
         vm_status={}
     )
 
+    # Check VM existance
+    vm_uuid_list = get_vm_uuid(params, client)
+
+    if len(vm_uuid_list) > 1 and not vm_uuid:
+        result["failed"] = True
+        result["msg"] = "Multiple Vm's with same name '%s' exists in the cluster. please give different name or specify vm_uuid if you want to update vm" % params["name"]
+        result["vm_uuid"] = vm_uuid_list
+        return result
+    elif len(vm_uuid_list) >= 1 or vm_uuid:
+        return _update(params, client, vm_uuid=vm_uuid)
+    
+
     # Create VM Spec
     vm_spec = CREATE_PAYLOAD
-    nic_list = []
-    disk_list = []
-
-    for nic in params['nic_list']:
-        nic_list.append({
-            "nic_type": "NORMAL_NIC",
-            "vlan_mode": "ACCESS",
-            "subnet_reference": {
-                "kind": "subnet",
-                "uuid": nic["uuid"]
-            },
-            "is_connected": True
-        })
-
-    scsi_counter=0
-    sata_counter=0
-    for disk in params['disk_list']:
-        if disk["adapter_type"] == "SCSI":
-            counter = scsi_counter
-            scsi_counter+=1
-        elif disk["adapter_type"] == "SATA":
-            counter = sata_counter
-            sata_counter+=1
-
-        if "data_source_uuid" in disk:
-            disk_list.append({
-            "device_properties": {
-                "disk_address": {
-                "device_index": counter,
-                "adapter_type": disk["adapter_type"]
-                },
-                "device_type": disk["device_type"]
-            },
-            "data_source_reference": {
-                "kind": "image",
-                "uuid": disk["data_source_uuid"]
-            }
-            })
-        else:
-            disk_list.append({
-            "device_properties": {
-                "disk_address": {
-                "device_index": counter,
-                "adapter_type": disk["adapter_type"]
-                },
-                "device_type": disk["device_type"]
-            },
-            "disk_size_mib": disk["size_mib"]
-            })
-
-    vm_spec["spec"]["name"] = params['name']
-    vm_spec["spec"]["resources"]["num_sockets"] = params['cpu']
-    vm_spec["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
-    vm_spec["spec"]["resources"]["memory_size_mib"] = params['memory']
-    vm_spec["spec"]["resources"]["power_state"] = "ON"
-    vm_spec["spec"]["resources"]["nic_list"] = nic_list
-    vm_spec["spec"]["resources"]["disk_list"] = disk_list
-
-    if params["guest_customization"]:
-        if "cloud_init" in params["guest_customization"]:
-            cloud_init_encoded = base64.b64encode(params["guest_customization"]["cloud_init"].encode('ascii'))
-            vm_spec["spec"]["resources"]["guest_customization"] = {
-                    "cloud_init": {
-                        "user_data" : cloud_init_encoded.decode('ascii')
-                        }
-                }
-
-
-    vm_spec["spec"]["cluster_reference"] = { "kind": "cluster", "uuid": params['cluster_uuid'] }
+    vm_spec = create_vm_spec(params, vm_spec, client)
 
     if params["dry_run"] == True:
         result["vm_spec"] = vm_spec
@@ -359,47 +392,7 @@ def _create(params, client):
 
     return result
 
-def _delete(params, client):
-
-    vm_uuid = ''
-
-    result = dict(
-        changed=False,
-        task_uuid='',
-    )
-
-    data = {"filter": "vm_name==%s" % params["name"] }
-    response = client.request(api_endpoint="v3/vms/list", method="POST", data=json.dumps(data))
-    for entity in json.loads(response.content)["entities"]:
-        if entity["status"]["name"] == params["name"]:
-            vm_uuid = entity["metadata"]["uuid"]
-
-    if vm_uuid == "":
-        result["failed"] = True
-        result["msg"] = "Vm '%s' doesnot exists in the Cluster." % params["name"]
-        return result
-
-    # Delete VM
-    response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="DELETE", data=None)
-    task_uuid = json.loads(response.content)["status"]["execution_context"]["task_uuid"]
-
-    result["task_uuid"] = task_uuid
-    result["changed"] = True
-
-    # Poll for task completion
-    while True:
-        response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
-        if json.loads(response.content)["status"] == "SUCCEEDED":
-            break
-        elif json.loads(response.content)["status"] == "FAILED":
-            result["failed"] = True
-            result["msg"] = json.loads(response.content)["error_detail"]
-            return result
-        time.sleep(5)
-
-    return result
-
-def _update(params, client):
+def _update(params, client, vm_uuid=None):
 
     result = dict(
         changed=False,
@@ -408,12 +401,13 @@ def _update(params, client):
         task_uuid = ''
     )
 
-    vm_uuid = get_vm_uuid(params, client)
-
     if not vm_uuid:
+        vm_uuid = get_vm_uuid(params, client)[0]
+
+    """if not vm_uuid:
         result["failed"] = True
         result["msg"] = "Vm '%s' doesnot exists in the Cluster." % params["name"]
-        return result
+        return result"""
 
     vm_json = get_vm(vm_uuid, client)
 
@@ -446,6 +440,46 @@ def _update(params, client):
     result["updated_vm_spec"] = updated_vm_spec
 
     task_uuid = update_vm(vm_uuid, updated_vm_spec, client)
+    result["task_uuid"] = task_uuid
+    result["changed"] = True
+
+    # Poll for task completion
+    while True:
+        response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
+        if json.loads(response.content)["status"] == "SUCCEEDED":
+            break
+        elif json.loads(response.content)["status"] == "FAILED":
+            result["failed"] = True
+            result["msg"] = json.loads(response.content)["error_detail"]
+            return result
+        time.sleep(5)
+
+    return result
+
+def _delete(params, client):
+
+    vm_uuid = ''
+
+    result = dict(
+        changed=False,
+        task_uuid='',
+    )
+
+    data = {"filter": "vm_name==%s" % params["name"] }
+    response = client.request(api_endpoint="v3/vms/list", method="POST", data=json.dumps(data))
+    for entity in json.loads(response.content)["entities"]:
+        if entity["status"]["name"] == params["name"]:
+            vm_uuid = entity["metadata"]["uuid"]
+
+    if vm_uuid == "":
+        result["failed"] = True
+        result["msg"] = "Vm '%s' doesnot exists in the Cluster." % params["name"]
+        return result
+
+    # Delete VM
+    response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="DELETE", data=None)
+    task_uuid = json.loads(response.content)["status"]["execution_context"]["task_uuid"]
+
     result["task_uuid"] = task_uuid
     result["changed"] = True
 

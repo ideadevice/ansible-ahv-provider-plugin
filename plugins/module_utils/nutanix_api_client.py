@@ -72,19 +72,21 @@ def list_vms(filter, client):
 def get_vm_uuid(params, client):
     length = 100
     offset = 0
-    total_matches = 999
+    total_matches = 99999
     vm_name = params['name']
+    vm_uuid = []
     while offset < total_matches:
         filter = {"filter": "vm_name==%s" %
                   vm_name, "length": length, "offset": offset}
         vms_list = list_vms(filter, client)
         for vm in vms_list["entities"]:
             if vm["status"]["name"] == vm_name:
-                return vm["metadata"]["uuid"]
+                vm_uuid.append(vm["metadata"]["uuid"])
 
         total_matches = vms_list["metadata"]["total_matches"]
         offset += length
-    return None
+    
+    return vm_uuid
 
 
 def get_vm(vm_uuid, client):
