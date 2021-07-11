@@ -9,21 +9,167 @@ __metaclass__ = type
 
 DOCUMENTATION = r'''
 ---
-module: nutanix_vm_create
+module: nutanix_vm
 
-short_description: VM Operations module
+short_description: VM module which suports VM CRUD operations
 
 version_added: "0.0.1"
 
-description: This module takes in VM parameters and does VM operations.
+description: Create, Update, Delete, Power-on, Power-off Nutanix VM's
 
 options:
-
-# TO-DO
+    pc_hostname:
+        description:
+        - PC hostname or IP address
+        type: str
+        required: True
+    pc_username:
+        description:
+        - PC username
+        type: str
+        required: True
+    pc_password:
+        description:
+        - PC password
+        required: True
+        type: str
+    pc_port:
+        description:
+        - PC port
+        type: str
+        default: 9440
+        required: False
+    validate_certs:
+        description:
+        - Set value to C(False) to skip validation for self signed certificates
+        - This is not recommended for production setup
+        type: bool
+        default: True
+    state:
+        description:
+        - Specify state of Virtual Machine
+        - If C(state) is set to C(present) the VM is created, if VM with same name already exists it will updated the VM.
+        - If C(state) is set to C(absent) and the VM exists in the cluster, VM with specified name is removed.
+        - If C(state) is set to C(poweron) and the VM exists in the cluster, VM with specified name is Powered On.
+        - If C(state) is set to C(poweroff) and the VM exists in the cluster, VM with specified name is Powered Off.
+        type: str
+        default: present
+    name:
+        description:
+        - Name of the Virtual Machine
+        type: str
+        required: True
+    vm_uuid:
+        description:
+        - Used during VM update, only needed if VM's with same name exits in the cluster.
+        type: str
+        required: False
+    cpu:
+        description:
+        - Number of CPU's.
+        type: int
+        required: True
+    vcpu:
+        description:
+        - Number of Cores per CPU.
+        type: int
+        required: True
+    memory:
+        description:
+        - Virtual Machine memory in (mib), E.g 2048 for 2GB.
+        type: int
+        required: True
+    cluster:
+        description:
+        - PE Cluster uuid/name where you want to place the VM.
+        type: str
+        required: True
+    dry_run:
+        description:
+        - Set value to C(True) to skip vm creation and print the spec for verification.
+        type: bool
+        default: False
+    disk_list:
+        description:
+        - Virtual Machine Disk list
+        type: list
+        elements: dict
+        suboptions:
+            clone_from_image:
+                description:
+                - Name/UUID of the image
+                type: str
+            size_mib:
+                description:
+                - Disk Size
+                type: str
+            device_type:
+                description:
+                - Disk Device type
+                type: str
+                - 'Accepted value for this field:'
+                - '    - C(DISK)'
+                - '    - C(CDROM)'
+            adapter_type:
+                description:
+                - Disk Adapter type
+                type: str
+                - 'Accepted value for this field:'
+                - '    - C(SCSI)'
+                - '    - C(PCI)'
+                - '    - C(SATA)'
+                - '    - C(IDE)'
+        required: True
+    nic_list:
+        description:
+        - Virtual Machine Nic list
+        type: list
+        elements: dict
+        suboptions:
+            uuid:
+                description:
+                - Subnet UUID
+                type: str
+        required: True
+    guest_customization:
+        description:
+        - Virtual Machine Guest Customization
+        type: dict
+        - 'Valid attributes are:'
+        - ' - C(cloud_init) (str): Path of the cloud-init yaml file.'
+        - ' - C(sysprep) (str): Path of the sysprep xml file.'
+author:
+    - Sarat Kumar (@kumarsarath588)
 '''
 
 EXAMPLES = r'''
-#TO-DO
+- name: Create VM
+  hosts: localhost
+  collections:
+  - nutanix.nutanix
+  tasks:
+  - nutanix_vm:
+      validate_certs: False
+      state: present
+      name: "vm-0001"
+      cpu: 2
+      vcpu: 2
+      memory: 2048
+      cluster: 0005b4d3-7ded-0db1-0000-000000029057
+      disk_list:
+      - device_type: DISK
+        clone_from_image: 4e6fdc88-2918-4b6c-9aad-fba9764f9588
+        adapter_type: SCSI
+      - device_type: DISK
+        adapter_type: SCSI
+        size_mib: 10240
+      nic_list:
+      - uuid: c1222f09-54c1-4e93-aa62-913cbcdfff1d
+      guest_customization:
+        cloud_init: "cloud-init.yaml"
+    register: vm
+  - debug:
+      msg: "{{ vm }}"
 '''
 
 
@@ -81,17 +227,26 @@ def main():
         ),
         pc_port=dict(default="9440", type='str', required=False),
         validate_certs=dict(default=True, type='bool'),
+        state=dict(
+            default="present",
+            type='str',
+            choices=[
+            "present",
+            "absent",
+            "poweron",
+            "poweroff"
+            ]),
         name=dict(type='str', required=True),
         vm_uuid=dict(type='str', required=False),
         cpu=dict(type='int', required=True),
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
-        cluster_uuid=dict(type='str', required=True),
+        cluster=dict(type='str', required=True),
         dry_run=dict(type='bool', required=False),
         disk_list=dict(
             type='list',
             required=True,
-            data_source_uuid=dict(
+            clone_from_image=dict(
                 type='str'
             ),
             size_mib=dict(
@@ -114,15 +269,6 @@ def main():
                 required=True
             )
         ),
-        state=dict(
-            default="present",
-            type='str',
-            choices=[
-            "present",
-            "absent",
-            "poweron",
-            "poweroff"
-            ]),
         guest_customization=dict(
             type='dict', required=False,
             cloud_init=dict(
@@ -196,7 +342,7 @@ def create_vm_spec(params, vm_spec, client):
             counter = sata_counter
             sata_counter+=1
 
-        if "data_source_uuid" in disk:
+        if "clone_from_image" in disk:
             disk_list.append({
             "device_properties": {
                 "disk_address": {
@@ -207,7 +353,7 @@ def create_vm_spec(params, vm_spec, client):
             },
             "data_source_reference": {
                 "kind": "image",
-                "uuid": disk["data_source_uuid"]
+                "uuid": disk["clone_from_image"]
             }
             })
         else:
@@ -240,7 +386,7 @@ def create_vm_spec(params, vm_spec, client):
                 }
 
 
-    vm_spec["spec"]["cluster_reference"] = { "kind": "cluster", "uuid": params['cluster_uuid'] }
+    vm_spec["spec"]["cluster_reference"] = { "kind": "cluster", "uuid": params['cluster'] }
 
     return vm_spec
 
@@ -271,7 +417,7 @@ def update_vm_spec(params, vm, client):
             counter = sata_counter
             sata_counter+=1
 
-        if "data_source_uuid" in disk:
+        if "clone_from_image" in disk:
             try:
                 spec_disk = spec_disk_list[i]
                 disk_list.append(spec_disk)
@@ -286,7 +432,7 @@ def update_vm_spec(params, vm, client):
                 },
                 "data_source_reference": {
                     "kind": "image",
-                    "uuid": disk["data_source_uuid"]
+                    "uuid": disk["clone_from_image"]
                 }
                 })
         else:
