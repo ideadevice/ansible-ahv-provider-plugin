@@ -416,8 +416,7 @@ def update_vm_spec(params, vm_data):
 
     scsi_counter=0
     sata_counter=0
-    for i in range(len(param_disk_list)):
-        disk = param_disk_list[i]
+    for i, disk in enumerate(param_disk_list):
         if disk["adapter_type"] == "SCSI":
             counter = scsi_counter
             scsi_counter+=1
@@ -464,7 +463,7 @@ def update_vm_spec(params, vm_data):
     if guest_customization_cdrom:
         disk_list.append(guest_customization_cdrom)
 
-    for i in range(len(param_nic_list)):
+    for i, nic in enumerate(param_nic_list):
         try:
             spec_nic = spec_nic_list[i]
             nic_list.append(spec_nic)
@@ -474,7 +473,7 @@ def update_vm_spec(params, vm_data):
                 "vlan_mode": "ACCESS",
                 "subnet_reference": {
                     "kind": "subnet",
-                    "uuid": param_nic_list[i]["uuid"]
+                    "uuid": nic["uuid"]
                 },
                 "is_connected": True
             })
