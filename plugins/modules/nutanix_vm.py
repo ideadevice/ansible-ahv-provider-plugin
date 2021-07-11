@@ -5,6 +5,20 @@
 
 from __future__ import (absolute_import, division, print_function)
 
+import json
+import time
+import base64
+from ansible.module_utils.basic import AnsibleModule, env_fallback
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
+    NutanixApiClient,
+    get_vm_uuid,
+    get_vm,
+    create_vm,
+    update_vm,
+    delete_vm,
+    task_poll
+)
+
 __metaclass__ = type
 
 DOCUMENTATION = r'''
@@ -202,17 +216,6 @@ CREATE_PAYLOAD = {
   }
 }
 
-import json
-import time
-import base64
-from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
-    NutanixApiClient,
-    get_vm_uuid,
-    get_vm,
-    update_vm
-)
-
 def main():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
@@ -272,11 +275,11 @@ def main():
         guest_customization=dict(
             type='dict', required=False,
             cloud_init=dict(
-                type='str', 
+                type='str',
                 required=True
                 ),
             sysprep=dict(
-                type='str', 
+                type='str',
                 required=True
                 ),
         ),
@@ -317,7 +320,7 @@ def entry_point(module, client):
 
     return func(module.params, client)
 
-def create_vm_spec(params, vm_spec, client):
+def create_vm_spec(params, vm_spec):
     nic_list = []
     disk_list = []
 
@@ -378,7 +381,9 @@ def create_vm_spec(params, vm_spec, client):
 
     if params["guest_customization"]:
         if "cloud_init" in params["guest_customization"]:
-            cloud_init_encoded = base64.b64encode(params["guest_customization"]["cloud_init"].encode('ascii'))
+            cloud_init_encoded = base64.b64encode(
+                params["guest_customization"]["cloud_init"].encode('ascii')
+                )
             vm_spec["spec"]["resources"]["guest_customization"] = {
                     "cloud_init": {
                         "user_data" : cloud_init_encoded.decode('ascii')
@@ -390,12 +395,12 @@ def create_vm_spec(params, vm_spec, client):
 
     return vm_spec
 
-def update_vm_spec(params, vm, client):
+def update_vm_spec(params, vm_data):
 
     nic_list = []
     disk_list = []
     guest_customization_cdrom = None
-    vm_spec = vm["spec"]
+    vm_spec = vm_data["spec"]
     spec_nic_list = vm_spec["resources"]["nic_list"]
     spec_disk_list = vm_spec["resources"]["disk_list"]
 
@@ -403,7 +408,10 @@ def update_vm_spec(params, vm, client):
     param_nic_list = params['nic_list']
 
     if params["guest_customization"]:
-        if "cloud_init" in params["guest_customization"] or "sysprep" in params["guest_customization"]:
+        if (
+            "cloud_init" in params["guest_customization"] or
+            "sysprep" in params["guest_customization"]
+        ):
             guest_customization_cdrom = spec_disk_list.pop()
 
     scsi_counter=0
@@ -471,15 +479,15 @@ def update_vm_spec(params, vm, client):
                 "is_connected": True
             })
 
-    vm["spec"]["resources"]["num_sockets"] = params['cpu']
-    vm["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
-    vm["spec"]["resources"]["memory_size_mib"] = params['memory']
-    vm["spec"]["resources"]["power_state"] = "ON"
-    vm["spec"]["resources"]["nic_list"] = nic_list
-    vm["spec"]["resources"]["disk_list"] = disk_list
-    vm["metadata"]["spec_version"] += 1
+    vm_data["spec"]["resources"]["num_sockets"] = params['cpu']
+    vm_data["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
+    vm_data["spec"]["resources"]["memory_size_mib"] = params['memory']
+    vm_data["spec"]["resources"]["power_state"] = "ON"
+    vm_data["spec"]["resources"]["nic_list"] = nic_list
+    vm_data["spec"]["resources"]["disk_list"] = disk_list
+    vm_data["metadata"]["spec_version"] += 1
 
-    return vm
+    return vm_data
 
 def _create(params, client):
 
@@ -500,44 +508,38 @@ def _create(params, client):
 
     if len(vm_uuid_list) > 1 and not vm_uuid:
         result["failed"] = True
-        result["msg"] = "Multiple Vm's with same name '%s' exists in the cluster. please give different name or specify vm_uuid if you want to update vm" % params["name"]
+        result["msg"] = """Multiple Vm's with same name '%s' exists in the cluster.
+        please give different name or specify vm_uuid if you want to update vm""" % params["name"]
         result["vm_uuid"] = vm_uuid_list
         return result
     elif len(vm_uuid_list) >= 1 or vm_uuid:
         return _update(params, client, vm_uuid=vm_uuid)
-    
 
     # Create VM Spec
     vm_spec = CREATE_PAYLOAD
-    vm_spec = create_vm_spec(params, vm_spec, client)
+    vm_spec = create_vm_spec(params, vm_spec)
 
-    if params["dry_run"] == True:
+    if params['dry_run'] is True:
         result["vm_spec"] = vm_spec
         return result
 
     # Create VM
-    response = client.request(api_endpoint="v3/vms" , method="POST", data=json.dumps(vm_spec))
-    task_uuid = json.loads(response.content)["status"]["execution_context"]["task_uuid"]
-    vm_uuid = json.loads(response.content)["metadata"]["uuid"]
+    task_uuid, vm_uuid = create_vm(vm_uuid, vm_spec, client)
 
-    # Poll for task completion
-    while True:
-        response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
-        if json.loads(response.content)["status"] == "SUCCEEDED":
-            break
-        elif json.loads(response.content)["status"] == "FAILED":
-            result["failed"] = True
-            result["msg"] = json.loads(response.content)["error_detail"]
-            return result
-        time.sleep(5)
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
 
     while True:
         response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
-        if len(json.loads(response.content)["status"]["resources"]["nic_list"]) > 0:
-            if len(json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"]) > 0:
-                if json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"] != "":
-                    result["vm_status"] = json.loads(response.content)["status"]
-                    result["vm_ip_address"] = json.loads(response.content)["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"]
+        json_content = json.loads(response.content)
+        if len(json_content["status"]["resources"]["nic_list"]) > 0:
+            if len(json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"]) > 0:
+                if json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"] != "":
+                    result["vm_status"] = json_content["status"]
+                    result["vm_ip_address"] = json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"]
                     break
         time.sleep(5)
 
@@ -558,10 +560,6 @@ def _update(params, client, vm_uuid=None):
     if not vm_uuid:
         vm_uuid = get_vm_uuid(params, client)[0]
 
-    """if not vm_uuid:
-        result["failed"] = True
-        result["msg"] = "Vm '%s' doesnot exists in the Cluster." % params["name"]
-        return result"""
 
     vm_json = get_vm(vm_uuid, client)
 
@@ -574,79 +572,74 @@ def _update(params, client, vm_uuid=None):
 
         task_uuid = update_vm(vm_uuid, vm_json, client)
 
-        # Poll for task completion
-        while True:
-            response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
-            if json.loads(response.content)["status"] == "SUCCEEDED":
-                break
-            elif json.loads(response.content)["status"] == "FAILED":
-                result["failed"] = True
-                result["msg"] = json.loads(response.content)["error_detail"]
-                return result
-            time.sleep(5)
-        vm_json["metadata"]["entity_version"] = "%d"% (int(vm_json["metadata"]["entity_version"]) + 1)
+        task_status = task_poll(task_uuid, client)
+        if task_status:
+            result["failed"] = True
+            result["msg"] = task_status
+            return result
+
+        vm_json["metadata"]["entity_version"] = "%d" % (
+                    int(vm_json["metadata"]["entity_version"]) + 1
+                )
 
     # Update the VM
     if "status" in vm_json:
         del vm_json["status"]
-    updated_vm_spec = update_vm_spec(params, vm_json, client)
+    updated_vm_spec = update_vm_spec(params, vm_json)
     updated_vm_spec["spec"]["resources"]["power_state"] = "ON"
     result["updated_vm_spec"] = updated_vm_spec
 
+    if params['dry_run'] is True:
+        return result
+
     task_uuid = update_vm(vm_uuid, updated_vm_spec, client)
     result["task_uuid"] = task_uuid
-    result["changed"] = True
 
-    # Poll for task completion
-    while True:
-        response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
-        if json.loads(response.content)["status"] == "SUCCEEDED":
-            break
-        elif json.loads(response.content)["status"] == "FAILED":
-            result["failed"] = True
-            result["msg"] = json.loads(response.content)["error_detail"]
-            return result
-        time.sleep(5)
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["changed"] = True
 
     return result
 
 def _delete(params, client):
 
-    vm_uuid = ''
+    vm_uuid = None
+
+    if "vm_uuid" in params:
+        vm_uuid = params["vm_uuid"]
 
     result = dict(
         changed=False,
         task_uuid='',
     )
 
-    data = {"filter": "vm_name==%s" % params["name"] }
-    response = client.request(api_endpoint="v3/vms/list", method="POST", data=json.dumps(data))
-    for entity in json.loads(response.content)["entities"]:
-        if entity["status"]["name"] == params["name"]:
-            vm_uuid = entity["metadata"]["uuid"]
-
-    if vm_uuid == "":
+    vm_uuid_list = get_vm_uuid(params, client)
+    if len(vm_uuid_list) > 1 and not vm_uuid:
         result["failed"] = True
-        result["msg"] = "Vm '%s' doesnot exists in the Cluster." % params["name"]
+        result["msg"] = """Multiple Vm's with same name '%s' exists in the cluster.
+            Specify vm_uuid of the VM you want to delete.""" % params["name"]
+        result["vm_uuid"] = vm_uuid_list
         return result
 
+    if not vm_uuid:
+        vm_uuid = vm_uuid_list[0]
+
     # Delete VM
-    response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="DELETE", data=None)
-    task_uuid = json.loads(response.content)["status"]["execution_context"]["task_uuid"]
+    task_uuid = delete_vm(vm_uuid, client)
 
     result["task_uuid"] = task_uuid
-    result["changed"] = True
 
-    # Poll for task completion
-    while True:
-        response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
-        if json.loads(response.content)["status"] == "SUCCEEDED":
-            break
-        elif json.loads(response.content)["status"] == "FAILED":
-            result["failed"] = True
-            result["msg"] = json.loads(response.content)["error_detail"]
-            return result
-        time.sleep(5)
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["changed"] = True
 
     return result
 

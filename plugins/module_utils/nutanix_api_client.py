@@ -7,6 +7,7 @@ __metaclass__ = type
 
 import json
 import traceback
+import time
 from ansible.module_utils.basic import missing_required_lib
 
 try:
@@ -94,8 +95,34 @@ def get_vm(vm_uuid, client):
         api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
     return json.loads(get_virtual_machine.content)
 
+def create_vm(vm_uuid, data, client):
+    response = client.request(
+        api_endpoint="v3/vms" ,
+        method="POST",
+        data=json.dumps(data)
+    )
+    json_content = json.loads(response.content)
+    return (
+        json_content["status"]["execution_context"]["task_uuid"],
+        json_content["metadata"]["uuid"]
+    )
 
 def update_vm(vm_uuid, data, client):
     response = client.request(api_endpoint="v3/vms/%s" %
                               vm_uuid, method="PUT", data=json.dumps(data))
     return json.loads(response.content)["status"]["execution_context"]["task_uuid"]
+
+def delete_vm(vm_uuid, client):
+    response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="DELETE", data=None)
+    return json.loads(response.content)["status"]["execution_context"]["task_uuid"]
+
+def task_poll(task_uuid, client):
+    
+    while True:
+        response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
+        if json.loads(response.content)["status"] == "SUCCEEDED":
+            return None
+        elif json.loads(response.content)["status"] == "FAILED":
+            error_out = json.loads(response.content)["error_detail"]
+            return error_out
+        time.sleep(5)

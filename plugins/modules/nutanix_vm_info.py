@@ -2,8 +2,15 @@
 
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-
 from __future__ import (absolute_import, division, print_function)
+
+from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
+    NutanixApiClient,
+    list_vms
+)
+
 __metaclass__ = type
 
 DOCUMENTATION = r'''
@@ -38,9 +45,16 @@ options:
         type: str
         default: 9440
         required: False
+    validate_certs:
+        description:
+        - Set value to C(False) to skip validation for self signed certificates
+        - This is not recommended for production setup
+        type: bool
+        default: True
     data:
         description:
         - List filter payload.
+        type: dict
         - 'Valid attributes are:'
         - ' - C(filter) (str): filter string'
         - ' - C(length) (int): length'
@@ -75,15 +89,6 @@ EXAMPLES = r'''
 RETURN = r'''
 ## TO-DO
 '''
-
-import json
-from ansible.module_utils.basic import env_fallback
-from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
-    NutanixApiClient,
-    list_vms
-)
-
 
 def set_list_payload(data):
     length = 100
