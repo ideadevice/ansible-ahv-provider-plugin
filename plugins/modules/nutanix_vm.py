@@ -248,12 +248,17 @@ def update_vm_spec(params, vm, client):
 
     nic_list = []
     disk_list = []
+    guest_customization_cdrom = None
     vm_spec = vm["spec"]
     spec_nic_list = vm_spec["resources"]["nic_list"]
     spec_disk_list = vm_spec["resources"]["disk_list"]
 
     param_disk_list = params['disk_list']
     param_nic_list = params['nic_list']
+
+    if params["guest_customization"]:
+        if "cloud_init" in params["guest_customization"] or "sysprep" in params["guest_customization"]:
+            guest_customization_cdrom = spec_disk_list.pop()
 
     scsi_counter=0
     sata_counter=0
@@ -301,6 +306,9 @@ def update_vm_spec(params, vm, client):
                 },
                 "disk_size_mib": disk["size_mib"]
                 })
+
+    if guest_customization_cdrom:
+        disk_list.append(guest_customization_cdrom)
 
     for i in range(len(param_nic_list)):
         try:
