@@ -418,7 +418,7 @@ def create_vm_spec(params, vm_spec):
             counter = sata_counter
             sata_counter += 1
 
-        if "clone_from_image" in disk:
+        if disk["clone_from_image"]:
             disk_list.append({
                 "device_properties": {
                     "disk_address": {
@@ -493,8 +493,8 @@ def update_vm_spec(params, vm_data):
 
     if params["guest_customization"]:
         if (
-            "cloud_init" in params["guest_customization"] or
-            "sysprep" in params["guest_customization"]
+            params["guest_customization"]["cloud_init"] or
+            params["guest_customization"]["sysprep"]
         ):
             guest_customization_cdrom = spec_disk_list.pop()
 
@@ -508,7 +508,7 @@ def update_vm_spec(params, vm_data):
             counter = sata_counter
             sata_counter += 1
 
-        if "clone_from_image" in disk:
+        if disk["clone_from_image"]:
             try:
                 spec_disk = spec_disk_list[i]
                 disk_list.append(spec_disk)
@@ -577,7 +577,7 @@ def _create(params, client):
 
     vm_uuid = None
 
-    if "vm_uuid" in params:
+    if params["vm_uuid"]:
         vm_uuid = params["vm_uuid"]
 
     result = dict(
@@ -694,7 +694,7 @@ def _delete(params, client):
 
     vm_uuid = None
 
-    if "vm_uuid" in params:
+    if params["vm_uuid"]:
         vm_uuid = params["vm_uuid"]
 
     result = dict(
