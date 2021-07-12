@@ -48,6 +48,23 @@ options:
         - This is not recommended for production setup
         default: True
         type: bool
+    data:
+        description:
+        - Filter payload
+        - 'Valid attributes are:'
+        - ' - C(length) (int): length'
+        - ' - C(offset) (str): offset'
+        type: dict
+        required: False
+        suboptions:
+            length:
+                description:
+                - Length
+                type: int
+            offset:
+                description:
+                - Offset
+                type: int
 author:
     - Balu George (@balugeorge)
 '''
@@ -71,7 +88,20 @@ RETURN = r'''
 
 from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, list_images
+
+
+def set_list_payload(data):
+    length = 100
+    offset = 0
+    payload = {"length": length, "offset": offset}
+
+    if data and "length" in data:
+        payload["length"] = data["length"]
+    if data and "offset" in data:
+        payload["offset"] = data["offset"]
+
+    return payload
 
 
 def get_image_list():
@@ -85,6 +115,16 @@ def get_image_list():
                          fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
         image_name=dict(type='str', required=False),
+        data=dict(
+            type='dict',
+            required=False,
+            options=dict(
+                filter=dict(type='str'),
+                length=dict(type='int'),
+                offset=dict(type='int'),
+                sort_order=dict(type='str')
+            )
+        ),
         validate_certs=dict(default=True, type='bool', required=False),
     )
 
@@ -106,17 +146,14 @@ def get_image_list():
     # Instantiate api client
     client = NutanixApiClient(module)
 
-    # Images v3 api doesn't support filters
-    # Empty object passed as payload due to lack of filter support
-    data = "{}"
-
-    # Get Image list
-    image_list_response = client.request(
-        api_endpoint="v3/images/list", method="POST", data=data)
-
+    # Get image list/details
     image_name = module.params.get("image_name")
-    spec_list, status_list, image_list = [], [], []
-    for entity in image_list_response.json()["entities"]:
+    spec_list, status_list, image_list, meta_list = [], [], [], []
+    data = set_list_payload(module.params['data'])
+    image_list_data = list_images(data, client)
+
+    for entity in image_list_data["entities"]:
+        # Identify image list operation from image spec request
         if image_name == entity["status"]["name"]:
             result["image"] = entity
             result["image_uuid"] = entity["metadata"]["uuid"]
@@ -125,11 +162,13 @@ def get_image_list():
             spec_list.append(entity["spec"])
             status_list.append(entity["status"])
             image_list.append(entity["status"]["name"])
+            meta_list.append(entity["metadata"])
 
-    if spec_list and status_list and image_list:
+    if spec_list and status_list and image_list and meta_list:
         result["image_spec"] = spec_list
         result["image_status"] = status_list
         result["images"] = image_list
+        result["meta_list"] = meta_list
 
     # simple AnsibleModule.exit_json(), passing the key/value results
     module.exit_json(**result)
