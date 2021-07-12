@@ -5,20 +5,6 @@
 
 from __future__ import (absolute_import, division, print_function)
 
-import json
-import time
-import base64
-from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
-    NutanixApiClient,
-    get_vm_uuid,
-    get_vm,
-    create_vm,
-    update_vm,
-    delete_vm,
-    task_poll
-)
-
 __metaclass__ = type
 
 DOCUMENTATION = r'''
@@ -66,6 +52,11 @@ options:
         - If C(state) is set to C(absent) and the VM exists in the cluster, VM with specified name is removed.
         - If C(state) is set to C(poweron) and the VM exists in the cluster, VM with specified name is Powered On.
         - If C(state) is set to C(poweroff) and the VM exists in the cluster, VM with specified name is Powered Off.
+        choices:
+        - present
+        - absent
+        - poweron
+        - poweroff
         type: str
         default: present
     name:
@@ -116,14 +107,18 @@ options:
             size_mib:
                 description:
                 - Disk Size
-                type: str
+                type: int
             device_type:
                 description:
                 - Disk Device type
                 - 'Accepted value for this field:'
                 - '    - C(DISK)'
                 - '    - C(CDROM)'
-                type: strtype: str
+                choices:
+                - DISK
+                - CDROM
+                type: str
+                required: True
             adapter_type:
                 description:
                 - Disk Adapter type
@@ -132,7 +127,13 @@ options:
                 - '    - C(PCI)'
                 - '    - C(SATA)'
                 - '    - C(IDE)'
+                choices:
+                - SCSI
+                - PCI
+                - SATA
+                - IDE
                 type: str
+                required: True
         required: True
     nic_list:
         description:
@@ -144,6 +145,7 @@ options:
                 description:
                 - Subnet UUID
                 type: str
+                required: True
         required: True
     guest_customization:
         description:
@@ -152,6 +154,18 @@ options:
         - ' - C(cloud_init) (str): Path of the cloud-init yaml file.'
         - ' - C(sysprep) (str): Path of the sysprep xml file.'
         type: dict
+        required: False
+        suboptions:
+            cloud_init:
+                description:
+                - Cloud init file location
+                type: str
+                required: True
+            sysprep:
+                description:
+                - Sysprep File location
+                type: str
+                required: True
 author:
     - Sarat Kumar (@kumarsarath588)
 '''
@@ -163,24 +177,27 @@ EXAMPLES = r'''
   - nutanix.nutanix
   tasks:
   - nutanix_vm:
-      validate_certs: False
-      state: present
-      name: "vm-0001"
-      cpu: 2
-      vcpu: 2
-      memory: 2048
-      cluster: 0005b4d3-7ded-0db1-0000-000000029057
-      disk_list:
-      - device_type: DISK
-        clone_from_image: 4e6fdc88-2918-4b6c-9aad-fba9764f9588
-        adapter_type: SCSI
-      - device_type: DISK
-        adapter_type: SCSI
-        size_mib: 10240
-      nic_list:
-      - uuid: c1222f09-54c1-4e93-aa62-913cbcdfff1d
-      guest_customization:
-        cloud_init: "cloud-init.yaml"
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    validate_certs: False
+    name: "vm-0001"
+    cpu: 2
+    vcpu: 2
+    memory: 2048
+    cluster: "{{ cluster name or uuid }}"
+    disk_list:
+    - device_type: DISK
+      clone_from_image: "{{ image name or uuid }}"
+      adapter_type: SCSI
+    - device_type: DISK
+      adapter_type: SCSI
+      size_mib: 10240
+    nic_list:
+    - uuid: "{{ nic name or uuid }}"
+    guest_customization:
+      cloud_init: "cloud-init.yaml"
     register: vm
   - debug:
       msg: "{{ vm }}"
@@ -191,7 +208,20 @@ RETURN = r'''
 #TO-DO
 '''
 
-# This structure describes the format of the data expected by the end-points
+import json
+import time
+import base64
+from ansible.module_utils.basic import AnsibleModule, env_fallback
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
+    NutanixApiClient,
+    get_vm_uuid,
+    get_vm,
+    create_vm,
+    update_vm,
+    delete_vm,
+    task_poll
+)
+
 
 CREATE_PAYLOAD = {
     "metadata": {
@@ -216,6 +246,7 @@ CREATE_PAYLOAD = {
     }
 }
 
+
 def main():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
@@ -238,52 +269,67 @@ def main():
                 "absent",
                 "poweron",
                 "poweroff"
-            ]),
+            ]
+        ),
         name=dict(type='str', required=True),
         vm_uuid=dict(type='str', required=False),
         cpu=dict(type='int', required=True),
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
         cluster=dict(type='str', required=True),
-        dry_run=dict(type='bool', required=False),
+        dry_run=dict(
+            default=False,
+            type='bool',
+            required=False
+        ),
         disk_list=dict(
             type='list',
             required=True,
-            clone_from_image=dict(
-                type='str'
-            ),
-            size_mib=dict(
-                type='int'
-            ),
-            device_type=dict(
-                type='str', required=True,
-                choices=["DISK", "CDROM"]
-            ),
-            adapter_type=dict(
-                type='str', required=True,
-                choices=["SCSI", "PCI", "SATA", "IDE"]
+            elements='dict',
+            options=dict(
+                clone_from_image=dict(
+                    type='str'
+                ),
+                size_mib=dict(
+                    type='int'
+                ),
+                device_type=dict(
+                    type='str',
+                    required=True,
+                    choices=["DISK", "CDROM"]
+                ),
+                adapter_type=dict(
+                    type='str',
+                    required=True,
+                    choices=["SCSI", "PCI", "SATA", "IDE"]
+                )
             )
         ),
         nic_list=dict(
             type='list',
             required=True,
-            uuid=dict(
-                type='str',
-                required=True
+            elements='dict',
+            options=dict(
+                uuid=dict(
+                    type='str',
+                    required=True
+                )
             )
         ),
         guest_customization=dict(
-            type='dict', required=False,
-            cloud_init=dict(
-                type='str',
-                required=True
-            ),
-            sysprep=dict(
-                type='str',
-                required=True
-            ),
-        ),
-        force_update=dict(default=False, type='bool', required=False),
+            type='dict',
+            required=False,
+            options=dict(
+                cloud_init=dict(
+                    type='str',
+                    required=True
+                ),
+                sysprep=dict(
+                    type='str',
+                    required=True
+                )
+            )
+        )
     )
 
     # the AnsibleModule object will be our abstraction working with Ansible
@@ -386,9 +432,9 @@ def create_vm_spec(params, vm_spec):
                 params["guest_customization"]["cloud_init"].encode('ascii')
             )
             vm_spec["spec"]["resources"]["guest_customization"] = {
-                    "cloud_init": {
-                        "user_data": cloud_init_encoded.decode('ascii')
-                    }
+                "cloud_init": {
+                    "user_data": cloud_init_encoded.decode('ascii')
+                }
             }
 
     vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": params['cluster']}

@@ -4,13 +4,6 @@
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 from __future__ import (absolute_import, division, print_function)
 
-from ansible.module_utils.basic import env_fallback
-from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
-    NutanixApiClient,
-    list_vms
-)
-
 __metaclass__ = type
 
 DOCUMENTATION = r'''
@@ -64,6 +57,28 @@ options:
         - '     - ASCENDING'
         - '     - DESCENDING'
         type: dict
+        required: False
+        suboptions:
+            filter:
+                description:
+                - Filter
+                type: str
+            length:
+                description:
+                - Length
+                type: int
+            offset:
+                description:
+                - Offset
+                type: int
+            sort_attribute:
+                description:
+                - Sort Attribute, specify ASCENDING or DESCENDING
+                type: str
+            sort_order:
+                description:
+                - Sort Order
+                type: str
 
 author:
     - Balu George (@balugeorge)
@@ -72,9 +87,9 @@ author:
 EXAMPLES = r'''
 - name: List images
   nutanix.nutanix.nutanix_vm_info:
-    pc_hostname: {{ pc_hostname }}
-    pc_username: {{ pc_username }}
-    pc_password: {{ pc_password }}
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
     pc_port: 9440
     validate_certs: False
     data:
@@ -83,12 +98,19 @@ EXAMPLES = r'''
         length: 100
   register: result
 - debug:
-    var: {{ result.vms }}
+    var: "{{ result.vms }}"
 '''
 
 RETURN = r'''
 ## TO-DO
 '''
+
+from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
+    NutanixApiClient,
+    list_vms
+)
 
 
 def set_list_payload(data):
@@ -125,11 +147,13 @@ def get_vm_list():
         data=dict(
             type='dict',
             required=False,
-            filter=dict(type='str'),
-            length=dict(type='int'),
-            offset=dict(type='int'),
-            sort_attribute=dict(type='str'),
-            sort_order=dict(type='str'),
+            options=dict(
+                filter=dict(type='str'),
+                length=dict(type='int'),
+                offset=dict(type='int'),
+                sort_attribute=dict(type='str'),
+                sort_order=dict(type='str')
+            )
         ),
         validate_certs=dict(default=True, type='bool', required=False),
     )
