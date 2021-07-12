@@ -158,14 +158,25 @@ options:
         suboptions:
             cloud_init:
                 description:
-                - Cloud init file location
+                - Cloud init content
                 type: str
                 required: True
             sysprep:
                 description:
-                - Sysprep File location
+                - Sysprep content
                 type: str
                 required: True
+            sysprep_install_type:
+                description:
+                - Sysprep Install type
+                - 'Accepted value for this field:'
+                - '    - C(FRESH)'
+                - '    - C(PREPARED)'
+                type: str
+                required: False
+                choices:
+                - FRESH
+                - PREPARED
 author:
     - Sarat Kumar (@kumarsarath588)
 '''
@@ -197,7 +208,16 @@ EXAMPLES = r'''
     nic_list:
     - uuid: "{{ nic name or uuid }}"
     guest_customization:
-      cloud_init: "cloud-init.yaml"
+      cloud_init: |-
+          #cloud-config
+          users:
+            - name: centos
+              sudo: ['ALL=(ALL) NOPASSWD:ALL']
+          chpasswd:
+            list: |
+              centos:nutanix/4u
+            expire: False
+          ssh_pwauth: true
     register: vm
   - debug:
       msg: "{{ vm }}"
@@ -327,6 +347,11 @@ def main():
                 sysprep=dict(
                     type='str',
                     required=True
+                ),
+                sysprep_install_type=dict(
+                    type='str',
+                    required=False,
+                    choices=["FRESH", "PREPARED"]
                 )
             )
         )
@@ -434,6 +459,16 @@ def create_vm_spec(params, vm_spec):
             vm_spec["spec"]["resources"]["guest_customization"] = {
                 "cloud_init": {
                     "user_data": cloud_init_encoded.decode('ascii')
+                }
+            }
+        if "sysprep" in params["guest_customization"]:
+            sysprep_init_encoded = base64.b64encode(
+                params["guest_customization"]["sysprep"].encode('ascii')
+            )
+            vm_spec["spec"]["resources"]["guest_customization"] = {
+                "sysprep": {
+                    "install_type": params["guest_customization"]["sysprep_install_type"],
+                    "unattend_xml": sysprep_init_encoded.decode('ascii')
                 }
             }
 
