@@ -86,7 +86,7 @@ def get_vm_uuid(params, client):
 
         total_matches = vms_list["metadata"]["total_matches"]
         offset += length
-    
+
     return vm_uuid
 
 
@@ -95,9 +95,10 @@ def get_vm(vm_uuid, client):
         api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
     return json.loads(get_virtual_machine.content)
 
-def create_vm(vm_uuid, data, client):
+
+def create_vm(data, client):
     response = client.request(
-        api_endpoint="v3/vms" ,
+        api_endpoint="v3/vms",
         method="POST",
         data=json.dumps(data)
     )
@@ -107,17 +108,19 @@ def create_vm(vm_uuid, data, client):
         json_content["metadata"]["uuid"]
     )
 
+
 def update_vm(vm_uuid, data, client):
     response = client.request(api_endpoint="v3/vms/%s" %
                               vm_uuid, method="PUT", data=json.dumps(data))
     return json.loads(response.content)["status"]["execution_context"]["task_uuid"]
 
+
 def delete_vm(vm_uuid, client):
     response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="DELETE", data=None)
     return json.loads(response.content)["status"]["execution_context"]["task_uuid"]
 
+
 def task_poll(task_uuid, client):
-    
     while True:
         response = client.request(api_endpoint="v3/tasks/%s" % task_uuid, method="GET", data=None)
         if json.loads(response.content)["status"] == "SUCCEEDED":

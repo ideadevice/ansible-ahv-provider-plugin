@@ -54,7 +54,6 @@ options:
     data:
         description:
         - List filter payload.
-        type: dict
         - 'Valid attributes are:'
         - ' - C(filter) (str): filter string'
         - ' - C(length) (int): length'
@@ -64,6 +63,7 @@ options:
         - '   - Accepted values:'
         - '     - ASCENDING'
         - '     - DESCENDING'
+        type: dict
 
 author:
     - Balu George (@balugeorge)
@@ -89,6 +89,7 @@ EXAMPLES = r'''
 RETURN = r'''
 ## TO-DO
 '''
+
 
 def set_list_payload(data):
     length = 100

@@ -120,19 +120,19 @@ options:
             device_type:
                 description:
                 - Disk Device type
-                type: str
                 - 'Accepted value for this field:'
                 - '    - C(DISK)'
                 - '    - C(CDROM)'
+                type: strtype: str
             adapter_type:
                 description:
                 - Disk Adapter type
-                type: str
                 - 'Accepted value for this field:'
                 - '    - C(SCSI)'
                 - '    - C(PCI)'
                 - '    - C(SATA)'
                 - '    - C(IDE)'
+                type: str
         required: True
     nic_list:
         description:
@@ -148,10 +148,10 @@ options:
     guest_customization:
         description:
         - Virtual Machine Guest Customization
-        type: dict
         - 'Valid attributes are:'
         - ' - C(cloud_init) (str): Path of the cloud-init yaml file.'
         - ' - C(sysprep) (str): Path of the sysprep xml file.'
+        type: dict
 author:
     - Sarat Kumar (@kumarsarath588)
 '''
@@ -194,26 +194,26 @@ RETURN = r'''
 # This structure describes the format of the data expected by the end-points
 
 CREATE_PAYLOAD = {
-  "metadata": {
-    "kind": "vm",
-    "spec_version": 0
-  },
-  "spec": {
-    "cluster_reference": {
-      "kind": "kind",
-      "name": "name",
-      "uuid": "uuid"
+    "metadata": {
+        "kind": "vm",
+        "spec_version": 0
     },
-    "name": "name",
-    "resources": {
-      "disk_list": [],
-      "memory_size_mib": 0,
-      "nic_list": [],
-      "num_sockets": 0,
-      "num_vcpus_per_socket": 0,
-      "power_state": "power_state"
+    "spec": {
+        "cluster_reference": {
+            "kind": "kind",
+            "name": "name",
+            "uuid": "uuid"
+        },
+        "name": "name",
+        "resources": {
+            "disk_list": [],
+            "memory_size_mib": 0,
+            "nic_list": [],
+            "num_sockets": 0,
+            "num_vcpus_per_socket": 0,
+            "power_state": "power_state"
+        }
     }
-  }
 }
 
 def main():
@@ -234,10 +234,10 @@ def main():
             default="present",
             type='str',
             choices=[
-            "present",
-            "absent",
-            "poweron",
-            "poweroff"
+                "present",
+                "absent",
+                "poweron",
+                "poweroff"
             ]),
         name=dict(type='str', required=True),
         vm_uuid=dict(type='str', required=False),
@@ -257,11 +257,11 @@ def main():
             ),
             device_type=dict(
                 type='str', required=True,
-                choices= ["DISK", "CDROM"]
+                choices=["DISK", "CDROM"]
             ),
             adapter_type=dict(
                 type='str', required=True,
-                choices= ["SCSI", "PCI", "SATA", "IDE"]
+                choices=["SCSI", "PCI", "SATA", "IDE"]
             )
         ),
         nic_list=dict(
@@ -277,11 +277,11 @@ def main():
             cloud_init=dict(
                 type='str',
                 required=True
-                ),
+            ),
             sysprep=dict(
                 type='str',
                 required=True
-                ),
+            ),
         ),
         force_update=dict(default=False, type='bool', required=False),
     )
@@ -307,8 +307,8 @@ def main():
     result = entry_point(module, client)
     module.exit_json(**result)
 
-def entry_point(module, client):
 
+def entry_point(module, client):
     if module.params["state"] == "present":
         operation = "create"
     elif module.params["state"] == "absent":
@@ -319,6 +319,7 @@ def entry_point(module, client):
     func = globals()["_" + operation]
 
     return func(module.params, client)
+
 
 def create_vm_spec(params, vm_spec):
     nic_list = []
@@ -335,40 +336,40 @@ def create_vm_spec(params, vm_spec):
             "is_connected": True
         })
 
-    scsi_counter=0
-    sata_counter=0
+    scsi_counter = 0
+    sata_counter = 0
     for disk in params['disk_list']:
         if disk["adapter_type"] == "SCSI":
             counter = scsi_counter
-            scsi_counter+=1
+            scsi_counter += 1
         elif disk["adapter_type"] == "SATA":
             counter = sata_counter
-            sata_counter+=1
+            sata_counter += 1
 
         if "clone_from_image" in disk:
             disk_list.append({
-            "device_properties": {
-                "disk_address": {
-                "device_index": counter,
-                "adapter_type": disk["adapter_type"]
+                "device_properties": {
+                    "disk_address": {
+                        "device_index": counter,
+                        "adapter_type": disk["adapter_type"]
+                    },
+                    "device_type": disk["device_type"]
                 },
-                "device_type": disk["device_type"]
-            },
-            "data_source_reference": {
-                "kind": "image",
-                "uuid": disk["clone_from_image"]
-            }
+                "data_source_reference": {
+                    "kind": "image",
+                    "uuid": disk["clone_from_image"]
+                }
             })
         else:
             disk_list.append({
-            "device_properties": {
-                "disk_address": {
-                "device_index": counter,
-                "adapter_type": disk["adapter_type"]
+                "device_properties": {
+                    "disk_address": {
+                        "device_index": counter,
+                        "adapter_type": disk["adapter_type"]
+                    },
+                    "device_type": disk["device_type"]
                 },
-                "device_type": disk["device_type"]
-            },
-            "disk_size_mib": disk["size_mib"]
+                "disk_size_mib": disk["size_mib"]
             })
 
     vm_spec["spec"]["name"] = params['name']
@@ -383,17 +384,17 @@ def create_vm_spec(params, vm_spec):
         if "cloud_init" in params["guest_customization"]:
             cloud_init_encoded = base64.b64encode(
                 params["guest_customization"]["cloud_init"].encode('ascii')
-                )
+            )
             vm_spec["spec"]["resources"]["guest_customization"] = {
                     "cloud_init": {
-                        "user_data" : cloud_init_encoded.decode('ascii')
-                        }
-                }
+                        "user_data": cloud_init_encoded.decode('ascii')
+                    }
+            }
 
-
-    vm_spec["spec"]["cluster_reference"] = { "kind": "cluster", "uuid": params['cluster'] }
+    vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": params['cluster']}
 
     return vm_spec
+
 
 def update_vm_spec(params, vm_data):
 
@@ -414,15 +415,15 @@ def update_vm_spec(params, vm_data):
         ):
             guest_customization_cdrom = spec_disk_list.pop()
 
-    scsi_counter=0
-    sata_counter=0
+    scsi_counter = 0
+    sata_counter = 0
     for i, disk in enumerate(param_disk_list):
         if disk["adapter_type"] == "SCSI":
             counter = scsi_counter
-            scsi_counter+=1
+            scsi_counter += 1
         elif disk["adapter_type"] == "SATA":
             counter = sata_counter
-            sata_counter+=1
+            sata_counter += 1
 
         if "clone_from_image" in disk:
             try:
@@ -430,17 +431,17 @@ def update_vm_spec(params, vm_data):
                 disk_list.append(spec_disk)
             except IndexError:
                 disk_list.append({
-                "device_properties": {
-                    "disk_address": {
-                    "device_index": counter,
-                    "adapter_type": disk["adapter_type"]
+                    "device_properties": {
+                        "disk_address": {
+                            "device_index": counter,
+                            "adapter_type": disk["adapter_type"]
+                        },
+                        "device_type": disk["device_type"]
                     },
-                    "device_type": disk["device_type"]
-                },
-                "data_source_reference": {
-                    "kind": "image",
-                    "uuid": disk["clone_from_image"]
-                }
+                    "data_source_reference": {
+                        "kind": "image",
+                        "uuid": disk["clone_from_image"]
+                    }
                 })
         else:
             try:
@@ -450,14 +451,14 @@ def update_vm_spec(params, vm_data):
                 disk_list.append(spec_disk)
             except IndexError:
                 disk_list.append({
-                "device_properties": {
-                    "disk_address": {
-                    "device_index": counter,
-                    "adapter_type": disk["adapter_type"]
+                    "device_properties": {
+                        "disk_address": {
+                            "device_index": counter,
+                            "adapter_type": disk["adapter_type"]
+                        },
+                        "device_type": disk["device_type"]
                     },
-                    "device_type": disk["device_type"]
-                },
-                "disk_size_mib": disk["size_mib"]
+                    "disk_size_mib": disk["size_mib"]
                 })
 
     if guest_customization_cdrom:
@@ -487,6 +488,7 @@ def update_vm_spec(params, vm_data):
     vm_data["metadata"]["spec_version"] += 1
 
     return vm_data
+
 
 def _create(params, client):
 
@@ -523,7 +525,7 @@ def _create(params, client):
         return result
 
     # Create VM
-    task_uuid, vm_uuid = create_vm(vm_uuid, vm_spec, client)
+    task_uuid, vm_uuid = create_vm(vm_spec, client)
 
     task_status = task_poll(task_uuid, client)
     if task_status:
@@ -547,18 +549,18 @@ def _create(params, client):
 
     return result
 
+
 def _update(params, client, vm_uuid=None):
 
     result = dict(
         changed=False,
         vm_spec={},
         updated_vm_spec={},
-        task_uuid = ''
+        task_uuid=''
     )
 
     if not vm_uuid:
         vm_uuid = get_vm_uuid(params, client)[0]
-
 
     vm_json = get_vm(vm_uuid, client)
 
@@ -578,8 +580,8 @@ def _update(params, client, vm_uuid=None):
             return result
 
         vm_json["metadata"]["entity_version"] = "%d" % (
-                    int(vm_json["metadata"]["entity_version"]) + 1
-                )
+            int(vm_json["metadata"]["entity_version"]) + 1
+        )
 
     # Update the VM
     if "status" in vm_json:
@@ -603,6 +605,7 @@ def _update(params, client, vm_uuid=None):
     result["changed"] = True
 
     return result
+
 
 def _delete(params, client):
 
@@ -641,6 +644,7 @@ def _delete(params, client):
     result["changed"] = True
 
     return result
+
 
 if __name__ == '__main__':
     main()
