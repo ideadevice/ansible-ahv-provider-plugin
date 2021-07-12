@@ -174,6 +174,7 @@ options:
                 - '    - C(PREPARED)'
                 type: str
                 required: False
+                default: PREPARED
                 choices:
                 - FRESH
                 - PREPARED
