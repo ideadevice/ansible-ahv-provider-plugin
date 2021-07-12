@@ -79,6 +79,7 @@ def task_poll(task_uuid, client):
             return error_out
         time.sleep(5)
 
+
 def list_vms(filter, client):
     vm_list_response = client.request(
         api_endpoint="v3/vms/list", method="POST", data=json.dumps(filter))
@@ -134,6 +135,7 @@ def delete_vm(vm_uuid, client):
     response = client.request(
         api_endpoint="v3/vms/{0}".format(vm_uuid), method="DELETE", data=None)
     return response.json()["status"]["execution_context"]["task_uuid"]
+
 
 def list_images(filter, client):
     vm_list_response = client.request(
