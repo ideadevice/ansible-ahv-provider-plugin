@@ -38,25 +38,41 @@ options:
         type: str
         default: 9440
         required: False
-    images:
+    image_name:
         description:
-        - Image details
-        type: list
-        elements: dict
-        suboptions:
-            image_name:
-                description:
-                - Name of the image
-                type: str
-            image_type:
-                description:
-                - Image type, specify ISO_IMAGE or DISK_IMAGE
-                type: str
-            source_uri:
-                description:
-                - Image url
-                type: str
+        - Image name
+        type: str
         required: True
+    image_type:
+        description:
+        - Image type, ISO_IMAGE or DISK_IMAGE
+        - Auto detetected based on image extension
+        type: str
+        required: False
+    image_url:
+        description:
+        - Image url
+        type: str
+        required: True
+    force:
+        description:
+        - Used with C(present) or C(absent)
+        - Creates of multiple images with same name when set to true with C(present)
+        - Deletes all image with the same name when set to true with C(absent)
+        type: bool
+        default: False
+        required: False
+    new_image_name:
+        description:
+        - New image name for image update
+        type: str
+        required: False
+    new_image_type:
+        description:
+        - New image name for image update
+        - Accepts ISO_IMAGE or DISK_IMAGE
+        type: str
+        required: False
     validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
@@ -70,21 +86,37 @@ options:
         - If C(state) is set to C(absent) and the image is present, all images with the specified name are removed
         type: str
         default: present
+    data:
+        description:
+        - Filter payload
+        - 'Valid attributes are:'
+        - ' - C(length) (int): length'
+        - ' - C(offset) (str): offset'
+        type: dict
+        required: False
+        suboptions:
+            length:
+                description:
+                - Length
+                type: int
+            offset:
+                description:
+                - Offset
+                type: int
 author:
     - Balu George (@balugeorge)
 '''
 
 EXAMPLES = r'''
-- name: List images
+- name: Create image
   nutanix.nutanix.nutanix_images:
     pc_hostname: "{{ pc_hostname }}"
     pc_username: "{{ pc_username }}"
     pc_password: "{{ pc_password }}"
     pc_port: 9440
-    images:
-    - image_name: "{{ image_name }}"
-      image_type: "{{ image_type }}"
-      source_uri: "{{ source_uri }}"
+    image_name: "{{ image_name }}"
+    image_type: "{{ image_type }}"
+    image_url: "{{ image_url }}"
     validate_certs: False
     state: present
   register: result
@@ -106,9 +138,50 @@ RETURN = r'''
 import json
 import copy
 import time
+from os.path import splitext
+from urllib.parse import urlparse
 from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
+    NutanixApiClient,
+    create_image,
+    update_image,
+    list_images,
+    delete_image,
+    task_poll)
+
+
+CREATE_PAYLOAD = '''{
+  "spec": {
+    "name": "IMAGE_NAME",
+    "resources": {
+      "image_type": "IMAGE_TYPE",
+      "source_uri": "IMAGE_URL",
+      "source_options": {
+        "allow_insecure_connection": false
+      }
+    },
+    "description": ""
+  },
+  "api_version": "3.1.0",
+  "metadata": {
+    "kind": "image",
+    "name": "IMAGE_NAME"
+  }
+}'''
+
+
+def set_list_payload(data):
+    length = 100
+    offset = 0
+    payload = {"length": length, "offset": offset}
+
+    if data and "length" in data:
+        payload["length"] = data["length"]
+    if data and "offset" in data:
+        payload["offset"] = data["offset"]
+
+    return payload
 
 
 def generate_argument_spec(result):
@@ -121,17 +194,21 @@ def generate_argument_spec(result):
         pc_password=dict(type='str', required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
         pc_port=dict(default="9440", type='str', required=False),
-        images=dict(
-            type='list',
-            required=True,
-            elements='dict',
+        image_name=dict(type='str', required=True),
+        image_type=dict(type='str', required=False),
+        image_url=dict(type='str', required=True),
+        state=dict(default='present', type='str', required=False),
+        force=dict(default=False, type='bool', required=False),
+        new_image_name=dict(type='str', required=False),
+        new_image_type=dict(type='str', required=False),
+        data=dict(
+            type='dict',
+            required=False,
             options=dict(
-                image_name=dict(type='str'),
-                image_type=dict(type='str'),
-                source_uri=dict(type='str')
+                length=dict(type='int'),
+                offset=dict(type='int'),
             )
         ),
-        state=dict(default='present', type='str'),
         validate_certs=dict(default=True, type='bool', required=False),
     )
 
@@ -140,223 +217,187 @@ def generate_argument_spec(result):
         supports_check_mode=True
     )
 
-    # return initial result dict for dry run without execution
+    # return initial result dict for dry run
     if module.check_mode:
         module.exit_json(**result)
 
     return module
 
 
-def create_images(module, client, result):
-    batch_spec = {
-        "action_on_failure": "CONTINUE",
-        "execution_order": "NON_SEQUENTIAL",
-        "api_request_list":
-        [],
-        "api_version": "3.0"
-    }
+def create_image_spec(module):
 
-    image_spec = {
-        "operation": "POST",
-        "path_and_params": "/api/nutanix/v3/images",
-        "body":
-            {
-                "spec":
-                {
-                    "name": "",
-                    "resources":
-                    {
-                        "image_type": "",
-                        "source_uri": ""
-                    }
-                },
-                "metadata":
-                {
-                    "kind": "image"
-                },
-                "api_version": "3.1.0"
-            }
-    }
-
-    images = module.params.get("images")
-    task_uuid_list, image_list, created_image_list = [], [], []
-
-    for image in images:
-        api_image_spec = copy.deepcopy(image_spec)
-        image_name = image.get("image_name")
-        image_type = image.get("image_type")
-        source_uri = image.get("source_uri")
-        if image_name and image_type and source_uri:
-            api_image_spec["body"]["spec"]["name"] = image_name
-            api_image_spec["body"]["spec"]["resources"]["image_type"] = image_type
-            api_image_spec["body"]["spec"]["resources"]["source_uri"] = source_uri
-        batch_spec["api_request_list"].append(api_image_spec)
-
-    # Create Images
-    image_create_resp = client.request(
-        api_endpoint="v3/batch", method="POST", data=json.dumps(batch_spec))
-
-    result["changed"] = True
-    result["msg"] = []
-
-    for resp in image_create_resp.json()["api_response_list"]:
-        if resp["status"] == '202':
-            image_list.append(resp["api_response"]["spec"]["name"])
-            task_uuid_list.append(
-                resp["api_response"]["status"]["execution_context"]["task_uuid"])
+    image_name = module.params.get("image_name")
+    image_url = module.params.get("image_url")
+    image_type = module.params.get("image_type")
+    if not image_type:
+        parsed_url = urlparse(image_url)
+        path, extension = splitext(parsed_url.path)
+        if extension == ".iso":
+            image_type = "ISO_IMAGE"
+        elif extension == ".qcow2":
+            image_type = "DISK_IMAGE"
         else:
-            result["msg"].append(resp)
-            result["failed"] = True
+            module.fail_json(
+                "Unable to identify image_type, specify the value manually")
 
-    if task_uuid_list:
-        for task_uuid in task_uuid_list:
-            tasks_state = None
-            while tasks_state is None:
-                task_resp = client.request(api_endpoint="v3/tasks/{0}".format(task_uuid), method="GET", data=None)
-                if task_resp.json()["status"] == "SUCCEEDED":
-                    created_image_list.append(
-                        image_list[task_uuid_list.index(task_uuid)])
-                    tasks_state = "SUCCEEDED"
-                elif task_resp.json()["status"] == "FAILED":
-                    result["failed"] = True
-                    result["msg"].append(task_resp.json()["error_detail"])
-                    tasks_state = "FAILED"
-                else:
-                    time.sleep(5)
-        if created_image_list:
-            result["msg"].append("Created image(s): {0}".format(created_image_list))
+    create_payload = json.loads(CREATE_PAYLOAD)
 
+    create_payload["metadata"]["name"] = image_name
+    create_payload["spec"]["name"] = image_name
+    create_payload["spec"]["resources"]["image_type"] = image_type
+    create_payload["spec"]["resources"]["source_uri"] = image_url
+
+    return create_payload
+
+
+def _create(module, client, result):
+    image_count = 0
+    image_spec = create_image_spec(module)
+    image_uuid_list = []
+    data = set_list_payload(module.params['data'])
+    image_name = module.params.get("image_name")
+    force_create = module.params.get("force")
+
+    if image_name:
+        image_list_data = list_images(data, client)
+        for entity in image_list_data["entities"]:
+            if image_name == entity["status"]["name"]:
+                image_uuid = entity["metadata"]["uuid"]
+                image_uuid_list.append(image_uuid)
+                image_update_spec = entity
+                image_count += 1
+            if image_count > 0 and not force_create:
+                result["msg"] = "Found existing images with name {0}, use force option to create new image".format(
+                    image_name)
+                result["failed"] = True
+                return result
+
+    # Create Image
+    task_uuid, image_uuid = create_image(image_spec, client)
+
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["image_uuid"] = image_uuid
+    result["changed"] = True
     return result
 
 
-def list_images(client):
-    return client.request(api_endpoint="v3/images/list", method="POST", data='{"offset": 0, "length": 100}')
+def _update(module, client, result):
+    image_count = 0
+    task_uuid_list, image_list, image_uuid_list = [], [], []
+    data = set_list_payload(module.params['data'])
+    image_name = module.params.get("image_name")
+    new_image_name = module.params.get("new_image_name")
+    new_image_type = module.params.get("new_image_type")
+
+    if image_name and (new_image_name or new_image_type):
+        image_list_data = list_images(data, client)
+        for entity in image_list_data["entities"]:
+            if image_name == entity["status"]["name"]:
+                image_uuid = entity["metadata"]["uuid"]
+                image_uuid_list.append(image_uuid)
+                image_update_spec = entity
+                # Remove status and update image name
+                del image_update_spec["status"]
+                if new_image_name:
+                    image_update_spec["spec"]["name"] = new_image_name
+                if new_image_type:
+                    image_update_spec["spec"]["resources"]["image_type"] = new_image_type
+                update = True
+                image_count += 1
+            if image_count > 1:
+                result["msg"] = "Found multiple images with name {0}, specify image_uuid".format(
+                    image_name)
+                result["failed"] = True
+                return result
+        if image_count == 0:
+            result["msg"] = "Could not find any image with name {0}".format(
+                image_name)
+            result["failed"] = True
+            return result
+        if not image_uuid_list:
+            result["msg"] = "Could not find UUID for image {0}".format(
+                image_name)
+            result["failed"] = True
+            return result
+        if update:
+            task_uuid = update_image(image_uuid, image_update_spec, client)
+
+    # Check task status for image update
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["changed"] = True
+    return result
 
 
-def update_image(module, client, result):
-    image_list_response = list_images(client)
+def _delete(module, client, result):
+    data = set_list_payload(module.params['data'])
+    force_delete = module.params.get("force")
 
-    images = module.params.get("images")
-    task_uuid_list, image_list, updated_image_list, image_uuid_list = [], [], [], []
-    result["msg"] = []
+    task_uuid_list, image_list, image_uuid_list = [], [], []
     image_count = 0
 
-    for image in images:
-        update = False
-        image_name = image.get("image_name")
-        updated_image_name = image.get("updated_image_name")
-        image_list.append(image_name)
-        if image_name and updated_image_name:
-            for entity in image_list_response.json()["entities"]:
-                if image_name == entity["status"]["name"] and image_count <= 1:
-                    image_uuid = entity["metadata"]["uuid"]
-                    # image_uuid_list.append(image_uuid)
-                    image_update_spec = entity
-                    del image_update_spec["status"]
-                    # image_update_spec["metadata"]["spec_version"] += 1
-                    image_update_spec["spec"]["name"] = updated_image_name
-                    update = True
-                    image_count += 1
-                elif image_count > 1:
-                    result["msg"] = "Found multiple images with name {0}, specify image_uuid".format(image_name)
-                    result["failed"] = True
-                    update = False
-                    return result
-            if image_count == 0:
-                result["msg"] = "Did not find any image with name {0}".format(image_name)
+    image_name = module.params.get("image_name")
+    if image_name:
+        image_list_data = list_images(data, client)
+        for entity in image_list_data["entities"]:
+            if image_name == entity["status"]["name"]:
+                image_uuid = entity["metadata"]["uuid"]
+                image_uuid_list.append(image_uuid)
+                image_update_spec = entity
+                image_count += 1
+            if image_count > 1 and not force_delete:
+                result["msg"] = "Found multiple images with name {0}, specify image_uuid or use force option to remove all images".format(
+                    image_name)
                 result["failed"] = True
                 return result
-            if not image_uuid_list:
-                result["msg"] = "Could not find UUID for image(s) {0}".format(image_list)
-                result["failed"] = True
-                return result
-        if update:
-            # Update image
-            image_update_resp = client.request(api_endpoint="v3/images/{0}".format(image_uuid), method="PUT", data=json.dumps(image_update_spec))
-            del image_update_spec
-            if image_update_resp.ok:
-                task_uuid_list.append(image_update_resp.json()[
-                                      "status"]["execution_context"]["task_uuid"])
-            else:
-                result["msg"] = image_update_resp.json()
-                result["failed"] = True
-
-    if task_uuid_list:
-        for task_uuid in task_uuid_list:
-            tasks_state = None
-            while tasks_state is None:
-                task_resp = client.request(api_endpoint="v3/tasks/{0}".format(task_uuid), method="GET", data=None)
-                if task_resp.json()["status"] == "SUCCEEDED":
-                    tasks_state = "SUCCEEDED"
-                elif task_resp.json()["status"] == "FAILED":
-                    result["failed"] = True
-                    result["msg"] = task_resp.json()["error_detail"]
-                    tasks_state = "FAILED"
-                else:
-                    time.sleep(5)
-
-    return result
-
-
-def delete_images(module, client, result):
-    batch_spec = {
-        "action_on_failure": "CONTINUE",
-        "execution_order": "NON_SEQUENTIAL",
-        "api_request_list":
-        [],
-        "api_version": "3.0"
-    }
-
-    image_spec = {
-        "operation": "DELETE",
-        "path_and_params": "/api/nutanix/v3/images/"
-    }
-
-    # Get image list of filtering out image uuid
-    image_list_response = list_images(client)
-    images = module.params.get("images")
-
-    image_uuid_list, image_list = [], []
-    for image in images:
-        image_name = image.get("image_name")
-        image_list.append(image_name)
-        if image_name:
-            for entity in image_list_response.json()["entities"]:
-                api_image_spec = copy.deepcopy(image_spec)
-                if image_name == entity["status"]["name"]:
-                    image_uuid = entity["metadata"]["uuid"]
-                    image_uuid_list.append(image_uuid)
-                    api_image_spec["path_and_params"] += image_uuid
-                    batch_spec["api_request_list"].append(api_image_spec)
-            if not image_uuid_list:
-                result["msg"] = "Could not find UUID for image(s) {0}".format(image_list)
-                result["failed"] = True
-
-    image_delete_resp = client.request(
-        api_endpoint="v3/batch", method="DELETE", data=json.dumps(batch_spec))
-    result["changed"] = True
-
-    task_uuid_list = []
-    for resp in image_delete_resp.json()["api_response_list"]:
-        if resp["status"] == '202':
-            task_uuid_list.append(
-                resp["api_response"]["status"]["execution_context"]["task_uuid"])
-        else:
-            result["msg"] = resp
+        if image_count == 0:
+            result["msg"] = "Did not find any image with name {0}".format(
+                image_name)
             result["failed"] = True
-
-    if task_uuid_list:
-        for task_uuid in task_uuid_list:
-            tasks_state = None
-            while tasks_state is None:
-                task_resp = client.request(api_endpoint="v3/tasks/{0}".format(task_uuid), method="GET", data=None)
-                if task_resp.json()["status"] == "SUCCEEDED":
-                    tasks_state = "SUCCEEDED"
-                elif task_resp.json()["status"] == "FAILED":
+            return result
+        if not image_uuid_list:
+            result["msg"] = "Could not find UUID for image {0}".format(
+                image_name)
+            result["failed"] = True
+            return result
+        # Delete all images with duplicate names when force is set to true
+        if image_count > 1 and force_delete:
+            for uuid in image_uuid_list:
+                task_uuid = delete_image(uuid, client)
+                task_uuid_list.append(task_uuid)
+        elif image_count == 1:
+            result["image_count"] = 1
+            result["changed"] = True
+            task_uuid = delete_image(image_uuid, client)
+            # Check task status for removal of a single image
+            if task_uuid:
+                task_status = task_poll(task_uuid, client)
+                if task_status:
                     result["failed"] = True
-                    result["msg"] = task_resp.json()["error_detail"]
-                    tasks_state = "FAILED"
-                time.sleep(5)
+                    result["msg"] = task_status
+                    return result
+    else:
+        result["failed"] = True
+        return result
+
+    # Check status of all deletion tasks for removal of multiple images with duplicate names
+    if task_uuid_list:
+        result["msg"] = []
+        for tuuid in task_uuid_list:
+            task_status = task_poll(tuuid, client)
+            if task_status:
+                result["failed"] = True
+                result["msg"].append(task_status)
+        return result
 
     return result
 
@@ -370,15 +411,17 @@ def main():
 
     # Generate arg spec and call function
     arg_spec = generate_argument_spec(result_init)
+    nimage_name = arg_spec.params.get("new_image_name")
+    nimage_type = arg_spec.params.get("new_image_type")
 
     # Instantiate api client
     api_client = NutanixApiClient(arg_spec)
-    if arg_spec.params["state"] == "present":
-        result = create_images(arg_spec, api_client, result_init)
-    elif arg_spec.params["state"] == "update":
-        result = update_image(arg_spec, api_client, result_init)
-    elif arg_spec.params["state"] == "absent":
-        result = delete_images(arg_spec, api_client, result_init)
+    if arg_spec.params.get("state") == "present" and (nimage_name or nimage_type):
+        result = _update(arg_spec, api_client, result_init)
+    elif arg_spec.params.get("state") == "present":
+        result = _create(arg_spec, api_client, result_init)
+    elif arg_spec.params.get("state") == "absent":
+        result = _delete(arg_spec, api_client, result_init)
 
     arg_spec.exit_json(**result)
 

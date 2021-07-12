@@ -119,10 +119,8 @@ def get_image_list():
             type='dict',
             required=False,
             options=dict(
-                filter=dict(type='str'),
                 length=dict(type='int'),
                 offset=dict(type='int'),
-                sort_order=dict(type='str')
             )
         ),
         validate_certs=dict(default=True, type='bool', required=False),

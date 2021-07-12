@@ -141,3 +141,34 @@ def list_images(filter, client):
     image_list_response = client.request(
         api_endpoint="v3/images/list", method="POST", data=json.dumps(filter))
     return image_list_response.json()
+
+
+def get_image(image_uuid, client):
+    get_image = client.request(
+        api_endpoint="v3/images/{0}".format(image_uuid), method="GET", data=None)
+    return get_image.json()
+
+
+def create_image(data, client):
+    response = client.request(
+        api_endpoint="v3/images",
+        method="POST",
+        data=json.dumps(data)
+    )
+    json_content = response.json()
+    return (
+        json_content["status"]["execution_context"]["task_uuid"],
+        json_content["metadata"]["uuid"]
+    )
+
+
+def update_image(image_uuid, data, client):
+    response = client.request(
+        api_endpoint="v3/images/{0}".format(image_uuid), method="PUT", data=json.dumps(data))
+    return response.json()["status"]["execution_context"]["task_uuid"]
+
+
+def delete_image(image_uuid, client):
+    response = client.request(
+        api_endpoint="v3/images/{0}".format(image_uuid), method="DELETE", data=None)
+    return response.json()["status"]["execution_context"]["task_uuid"]
