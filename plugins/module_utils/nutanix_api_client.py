@@ -79,10 +79,11 @@ def task_poll(task_uuid, client):
             return error_out
         time.sleep(5)
 
+
 def list_vms(filter, client):
     vm_list_response = client.request(
         api_endpoint="v3/vms/list", method="POST", data=json.dumps(filter))
-    return json.loads(vm_list_response.content)
+    return vm_list_response.json()
 
 
 def get_vm_uuid(params, client):
@@ -108,7 +109,7 @@ def get_vm_uuid(params, client):
 def get_vm(vm_uuid, client):
     get_virtual_machine = client.request(
         api_endpoint="v3/vms/{0}".format(vm_uuid), method="GET", data=None)
-    return json.loads(get_virtual_machine.content)
+    return get_virtual_machine.json()
 
 
 def create_vm(data, client):
@@ -135,7 +136,8 @@ def delete_vm(vm_uuid, client):
         api_endpoint="v3/vms/{0}".format(vm_uuid), method="DELETE", data=None)
     return response.json()["status"]["execution_context"]["task_uuid"]
 
+
 def list_images(filter, client):
-    vm_list_response = client.request(
+    image_list_response = client.request(
         api_endpoint="v3/images/list", method="POST", data=json.dumps(filter))
-    return json.loads(vm_list_response.content)
+    return image_list_response.json()
