@@ -82,7 +82,7 @@ class InventoryModule(BaseInventoryPlugin):
 
     def _get_vm_list(self):
         '''Get a list of existing VMs'''
-        api_url = f"https://{self.pc_hostname}:{self.pc_port}/api/nutanix/v3/vms/list"
+        api_url = "https://{0}:{1}/api/nutanix/v3/vms/list".format(self.pc_hostname, self.pc_port)
         auth = (self.pc_username, self.pc_password)
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
         payload = '{"offset": 0, "length": 100}'

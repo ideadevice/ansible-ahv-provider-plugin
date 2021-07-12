@@ -212,7 +212,7 @@ def create_images(module, client, result):
         for task_uuid in task_uuid_list:
             tasks_state = None
             while tasks_state is None:
-                task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
+                task_resp = client.request(api_endpoint="v3/tasks/{0}".format(task_uuid), method="GET", data=None)
                 if task_resp.json()["status"] == "SUCCEEDED":
                     created_image_list.append(
                         image_list[task_uuid_list.index(task_uuid)])
@@ -224,7 +224,7 @@ def create_images(module, client, result):
                 else:
                     time.sleep(5)
         if created_image_list:
-            result["msg"].append(f"Created image(s): {created_image_list}")
+            result["msg"].append("Created image(s): {0}".format(created_image_list))
 
     return result
 
@@ -258,21 +258,21 @@ def update_image(module, client, result):
                     update = True
                     image_count += 1
                 elif image_count > 1:
-                    result["msg"] = f"Found multiple images with name {image_name}, specify image_uuid"
+                    result["msg"] = "Found multiple images with name {0}, specify image_uuid".format(image_name)
                     result["failed"] = True
                     update = False
                     return result
             if image_count == 0:
-                result["msg"] = f"Did not find any image with name {image_name}"
+                result["msg"] = "Did not find any image with name {0}".format(image_name)
                 result["failed"] = True
                 return result
             if not image_uuid_list:
-                result["msg"] = f"Could not find UUID for image(s) {image_list}"
+                result["msg"] = "Could not find UUID for image(s) {0}".format(image_list)
                 result["failed"] = True
                 return result
         if update:
             # Update image
-            image_update_resp = client.request(api_endpoint=f"v3/images/{image_uuid}", method="PUT", data=json.dumps(image_update_spec))
+            image_update_resp = client.request(api_endpoint="v3/images/{0}".format(image_uuid), method="PUT", data=json.dumps(image_update_spec))
             del image_update_spec
             if image_update_resp.ok:
                 task_uuid_list.append(image_update_resp.json()[
@@ -285,7 +285,7 @@ def update_image(module, client, result):
         for task_uuid in task_uuid_list:
             tasks_state = None
             while tasks_state is None:
-                task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
+                task_resp = client.request(api_endpoint="v3/tasks/{0}".format(task_uuid), method="GET", data=None)
                 if task_resp.json()["status"] == "SUCCEEDED":
                     tasks_state = "SUCCEEDED"
                 elif task_resp.json()["status"] == "FAILED":
@@ -329,7 +329,7 @@ def delete_images(module, client, result):
                     api_image_spec["path_and_params"] += image_uuid
                     batch_spec["api_request_list"].append(api_image_spec)
             if not image_uuid_list:
-                result["msg"] = f"Could not find UUID for image(s) {image_list}"
+                result["msg"] = "Could not find UUID for image(s) {0}".format(image_list)
                 result["failed"] = True
 
     image_delete_resp = client.request(
@@ -349,7 +349,7 @@ def delete_images(module, client, result):
         for task_uuid in task_uuid_list:
             tasks_state = None
             while tasks_state is None:
-                task_resp = client.request(api_endpoint=f"v3/tasks/{task_uuid}", method="GET", data=None)
+                task_resp = client.request(api_endpoint="v3/tasks/{0}".format(task_uuid), method="GET", data=None)
                 if task_resp.json()["status"] == "SUCCEEDED":
                     tasks_state = "SUCCEEDED"
                 elif task_resp.json()["status"] == "FAILED":

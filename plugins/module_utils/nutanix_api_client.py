@@ -32,7 +32,7 @@ class NutanixApiClient(object):
         pc_password = module.params["pc_password"]
         pc_port = module.params["pc_port"]
         self.validate_certs = module.params["validate_certs"]
-        self.api_base = f"https://{pc_hostname}:{pc_port}/api/nutanix"
+        self.api_base = "https://{0}:{1}/api/nutanix".format(pc_hostname, pc_port)
         self.auth = (pc_username, pc_password)
         # Ensure that all deps are present
         self.check_dependencies()
@@ -43,19 +43,19 @@ class NutanixApiClient(object):
             requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
     def request(self, api_endpoint, method, data, timeout=20):
-        self.api_url = f"{self.api_base}/{api_endpoint}"
+        self.api_url = "{0}/{1}".format(self.api_base, api_endpoint)
         headers = {'Content-Type': 'application/json',
                    'Accept': 'application/json'}
         try:
             response = self.session.request(method=method, url=self.api_url, auth=self.auth,
                                             data=data, headers=headers, verify=self.validate_certs, timeout=timeout)
         except requests.exceptions.RequestException as cerr:
-            raise NutanixApiError(f"Request failed {str(cerr)}")
+            raise NutanixApiError("Request failed {0}".format(str(cerr)))
 
         if response.ok:
             return response
         else:
-            raise NutanixApiError(f"Request failed to complete, response code {response.status_code}, content {response.content}")
+            raise NutanixApiError("Request failed to complete, response code {0}, content {1}".format(response.status_code, response.content))
 
     def check_dependencies(self):
         if not HAS_REQUESTS:
