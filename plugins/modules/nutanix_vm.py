@@ -185,7 +185,7 @@ author:
 
 EXAMPLES = r'''
   - name: Create VM
-    nutanix.nutanix.nutanix_vm
+    nutanix.nutanix.nutanix_vm:
       pc_hostname: "{{ pc_hostname }}"
       pc_username: "{{ pc_username }}"
       pc_password: "{{ pc_password }}"
