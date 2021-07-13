@@ -245,7 +245,7 @@ def generate_argument_spec(result):
         image_name=dict(type='str', required=True),
         image_type=dict(type='str', required=False),
         image_url=dict(type='str', required=True),
-        image_uuid=dict(type='str', required=True),
+        image_uuid=dict(type='str', required=False),
         state=dict(default='present', type='str', required=False),
         force=dict(default=False, type='bool', required=False),
         new_image_name=dict(type='str', required=False),
