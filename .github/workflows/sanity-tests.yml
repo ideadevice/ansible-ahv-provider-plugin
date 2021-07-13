@@ -1,0 +1,36 @@
+###### To-do ######
+# Fetch namespace, collection and version details dynamically
+# Skip tests for python 2.6 and 2.7
+
+name: Run compile and sanity tests
+
+on:
+  push:
+    branches:
+    - *
+  pull_request:
+    branches:
+    - master
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Setup Python 3.9
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+    - name: Setup Docker
+      uses: docker-practice/actions-setup-docker@master
+    - name: Print docker version
+      run: |
+        set -x
+        docker version
+    - name: Install ansible
+      run: pip install ansible
+    - name: Build and install the collection
+      run: ansible-galaxy collection build && ansible-galaxy collection install nutanix-nutanix-0.0.1-rc1.tar.gz
+    - name: Run tests
+      run: |
+        cd /home/${USER}/.ansible/collections/ansible_collections/nutanix/nutanix
+        ansible-test sanity --docker default --python 3.9
