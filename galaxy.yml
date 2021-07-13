@@ -1,6 +1,6 @@
 namespace: "nutanix"
 name: "nutanix"
-version: "0.0.1"
+version: "0.0.1-rc1"
 readme: "README.md"
 authors:
     - "Balu George (@balugeorge)"
