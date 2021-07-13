@@ -6,11 +6,9 @@ name: Run compile and sanity tests
 
 on:
   push:
-    branches:
-    - *
   pull_request:
     branches:
-    - master
+    - main
 jobs:
   ci:
     runs-on: ubuntu-latest
