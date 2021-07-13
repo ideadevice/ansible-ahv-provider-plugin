@@ -5,7 +5,7 @@ Ansible plugin to integrate with Nutanix Enterprise Cloud
 # Building and installing the collection locally
 ```
 ansible-galaxy collection build
-ansible-galaxy collection install nutanix-nutanix-0.0.1.tar.gz
+ansible-galaxy collection install nutanix-nutanix-0.0.1-rc1.tar.gz
 ```
 _Add `--force` option for rebuilding or reinstalling to overwrite existing data_
 
