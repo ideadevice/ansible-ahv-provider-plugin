@@ -63,6 +63,12 @@ options:
         type: bool
         default: False
         required: False
+    image_uuid:
+        description:
+        - Image UUID
+        - Specify image for update if there are multiple images with the same name
+        type: str
+        required: False
     new_image_name:
         description:
         - New image name for image update
@@ -172,7 +178,6 @@ EXAMPLES = r'''
       until: job_result.finished
       retries: 30
       delay: 5
-
 '''
 
 RETURN = r'''
@@ -240,6 +245,7 @@ def generate_argument_spec(result):
         image_name=dict(type='str', required=True),
         image_type=dict(type='str', required=False),
         image_url=dict(type='str', required=True),
+        image_uuid=dict(type='str', required=True),
         state=dict(default='present', type='str', required=False),
         force=dict(default=False, type='bool', required=False),
         new_image_name=dict(type='str', required=False),
@@ -336,6 +342,7 @@ def _update(module, client, result):
     image_name = module.params.get("image_name")
     new_image_name = module.params.get("new_image_name")
     new_image_type = module.params.get("new_image_type")
+    image_uuid_for_update = module.params.get("image_uuid")
 
     if image_name and (new_image_name or new_image_type):
         image_list_data = list_images(data, client)
@@ -352,12 +359,14 @@ def _update(module, client, result):
                     image_update_spec["spec"]["resources"]["image_type"] = new_image_type
                 update = True
                 image_count += 1
-            if image_count > 1:
+            elif image_count > 1 and not image_uuid_for_update:
                 result["msg"] = "Found multiple images with name {0}, specify image_uuid".format(
                     image_name)
                 result["failed"] = True
                 return result
-        if image_count == 0:
+        if image_count > 1 and image_uuid_for_update:
+            image_uuid = image_uuid_for_update
+        elif image_count == 0:
             result["msg"] = "Could not find any image with name {0}".format(
                 image_name)
             result["failed"] = True
