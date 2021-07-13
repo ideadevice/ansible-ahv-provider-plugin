@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -70,24 +71,35 @@ author:
 '''
 
 EXAMPLES = r'''
-- name: List images
-  nutanix.nutanix.nutanix_image_info:
-    pc_hostname: "{{ pc_hostname }}"
-    pc_username: "{{ pc_username }}"
-    pc_password: "{{ pc_password }}"
-    pc_port: 9440
-    validate_certs: False
-  register: result
-- debug:
-    var: "{{ result.image }}"
+    - name: List images
+      nutanix.nutanix.nutanix_image_info:
+        pc_hostname: "{{ pc_hostname }}"
+        pc_username: "{{ pc_username }}"
+        pc_password: "{{ pc_password }}"
+        pc_port: 9440
+        validate_certs: False
+      register: image_list
+    - debug:
+        var: "{{ image_list.image }}"
+
+    - name: Get image details
+      nutanix.nutanix.nutanix_image_info:
+        pc_hostname: "{{ pc_hostname }}"
+        pc_username: "{{ pc_username }}"
+        pc_password: "{{ pc_password }}"
+        pc_port: 9440
+        image_name: "{{ image_name }}"
+        validate_certs: False
+      register: image_details
+    - debug:
+        var: "{{ image_details.image }}"
 '''
 
 RETURN = r'''
 ## TO-DO
 '''
 
-from ansible.module_utils.basic import env_fallback
-from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, list_images
 
 

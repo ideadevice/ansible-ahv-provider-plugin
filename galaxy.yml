@@ -4,6 +4,8 @@ version: "0.0.1"
 readme: "README.md"
 authors:
     - "Balu George (@balugeorge)"
-tags:
-    - collection
+    - "Sarath Kumar K (@kumarsarath588)"
+license:
+- GPL-2.0-or-later
+tags: [nutanix, ahv]
 repository: "https://www.github.com/ideadevice/ansible-ahv-provider-plugin"

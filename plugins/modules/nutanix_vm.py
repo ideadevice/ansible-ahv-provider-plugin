@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright: (c) 2021, Sarat Kumar <saratkumar.k@nutanix.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -183,12 +184,7 @@ author:
 '''
 
 EXAMPLES = r'''
-- name: Create VM
-  hosts: localhost
-  collections:
-  - nutanix.nutanix
-  tasks:
-  - nutanix_vm:
+  - nutanix.nutanix.nutanix_vm
     pc_hostname: "{{ pc_hostname }}"
     pc_username: "{{ pc_username }}"
     pc_password: "{{ pc_password }}"
@@ -219,6 +215,7 @@ EXAMPLES = r'''
               centos:nutanix/4u
             expire: False
           ssh_pwauth: true
+    delegate_to: localhost
     register: vm
   - debug:
       msg: "{{ vm }}"

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -8,7 +9,7 @@ __metaclass__ = type
 
 DOCUMENTATION = r'''
 ---
-module: nutanix_images
+module: nutanix_image
 
 short_description: Images module which supports image crud operations
 
@@ -108,27 +109,70 @@ author:
 '''
 
 EXAMPLES = r'''
-- name: Create image
-  nutanix.nutanix.nutanix_images:
-    pc_hostname: "{{ pc_hostname }}"
-    pc_username: "{{ pc_username }}"
-    pc_password: "{{ pc_password }}"
-    pc_port: 9440
-    image_name: "{{ image_name }}"
-    image_type: "{{ image_type }}"
-    image_url: "{{ image_url }}"
-    validate_certs: False
-    state: present
-  register: result
-  async: 600
-  poll: 0
-- name: Wait for image creation
-  async_status:
-    jid: "{{ result.ansible_job_id }}"
-  register: job_result
-  until: job_result.finished
-  retries: 30
-  delay: 5
+    - name: Create image
+      nutanix.nutanix.nutanix_image:
+        pc_hostname: "{{ pc_hostname }}"
+        pc_username: "{{ pc_username }}"
+        pc_password: "{{ pc_password }}"
+        pc_port: 9440
+        image_name: "{{ image_name }}"
+        image_type: "{{ image_type }}"
+        image_url: "{{ image_url }}"
+        state: present
+      delegate_to: localhost
+      register: create_image
+      async: 600
+      poll: 0
+    - name: Wait for image creation
+      async_status:
+        jid: "{{ create_image.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 30
+      delay: 5
+
+    - name: Delete image
+      nutanix.nutanix.nutanix_image:
+        pc_hostname: "{{ pc_hostname }}"
+        pc_username: "{{ pc_username }}"
+        pc_password: "{{ pc_password }}"
+        pc_port: 9440
+        image_name: "{{ image_name }}"
+        state: absent
+      delegate_to: localhost
+      register: delete_image
+      async: 600
+      poll: 0
+    - name: Wait for image deletion
+      async_status:
+        jid: "{{ delete_image.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 30
+      delay: 5
+
+    - name: Update image
+      nutanix.nutanix.nutanix_image:
+        pc_hostname: "{{ pc_hostname }}"
+        pc_username: "{{ pc_username }}"
+        pc_password: "{{ pc_password }}"
+        pc_port: 9440
+        image_name: "{{ image_name }}"
+        new_image_name: "{{ new_image_name }}"
+        new_image_type: "{{ new_image_type }}"
+        state: present
+      delegate_to: localhost
+      register: update_image
+      async: 600
+      poll: 0
+    - name: Wait for image update
+      async_status:
+        jid: "{{ update_image.ansible_job_id }}"
+      register: job_result
+      until: job_result.finished
+      retries: 30
+      delay: 5
+
 '''
 
 RETURN = r'''
@@ -140,8 +184,7 @@ import copy
 import time
 from os.path import splitext
 from urllib.parse import urlparse
-from ansible.module_utils.basic import env_fallback
-from ansible.module_utils.basic import AnsibleModule
+from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
     create_image,
