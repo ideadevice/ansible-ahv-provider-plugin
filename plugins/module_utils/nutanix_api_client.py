@@ -172,3 +172,9 @@ def delete_image(image_uuid, client):
     response = client.request(
         api_endpoint="v3/images/{0}".format(image_uuid), method="DELETE", data=None)
     return response.json()["status"]["execution_context"]["task_uuid"]
+
+
+def list_clusters(filter, client):
+    cluster_list_response = client.request(
+        api_endpoint="v3/clusters/list", method="POST", data=json.dumps(filter))
+    return cluster_list_response.json()

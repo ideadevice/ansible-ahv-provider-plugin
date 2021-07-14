@@ -7,7 +7,7 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 ---
 module: nutanix_image
 
@@ -55,18 +55,16 @@ options:
         - Image url
         type: str
         required: True
-    force:
-        description:
-        - Used with C(present) or C(absent)
-        - Creates of multiple images with same name when set to true with C(present)
-        - Deletes all image with the same name when set to true with C(absent)
-        type: bool
-        default: False
-        required: False
     image_uuid:
         description:
         - Image UUID
         - Specify image for update if there are multiple images with the same name
+        type: str
+        required: False
+    cluster_name:
+        description:
+        - Cluster name for image placement in the cluster
+        - Image is placed directly on all clusters by default
         type: str
         required: False
     new_image_name:
@@ -86,13 +84,6 @@ options:
         - This is not recommended for production setup
         type: bool
         default: True
-    state:
-        description:
-        - Specify state of image
-        - If C(state) is set to C(present) the image is created, nutanix supports multiple images with the same name
-        - If C(state) is set to C(absent) and the image is present, all images with the specified name are removed
-        type: str
-        default: present
     data:
         description:
         - Filter payload
@@ -106,15 +97,32 @@ options:
                 description:
                 - Length
                 type: int
+                default: 100
             offset:
                 description:
                 - Offset
                 type: int
+                default: 0
+    state:
+        description:
+        - Specify state of image
+        - If C(state) is set to C(present) the image is created, nutanix supports multiple images with the same name
+        - If C(state) is set to C(absent) and the image is present, all images with the specified name are removed
+        type: str
+        default: present
+    force:
+        description:
+        - Used with C(present) or C(absent)
+        - Creates of multiple images with same name when set to true with C(present)
+        - Deletes all image with the same name when set to true with C(absent)
+        type: bool
+        default: False
+        required: False
 author:
     - Balu George (@balugeorge)
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
     - name: Create image
       nutanix.nutanix.nutanix_image:
         pc_hostname: "{{ pc_hostname }}"
@@ -176,17 +184,16 @@ EXAMPLES = r'''
         jid: "{{ update_image.ansible_job_id }}"
       register: job_result
       until: job_result.finished
-      retries: 30
-      delay: 5
-'''
+      retries: 15
+      delay: 10
+"""
 
-RETURN = r'''
+RETURN = r"""
 ## TO-DO
-'''
+"""
 
 import json
 import copy
-import time
 from os.path import splitext
 from urllib.parse import urlparse
 from ansible.module_utils.basic import AnsibleModule, env_fallback
@@ -196,17 +203,24 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     update_image,
     list_images,
     delete_image,
+    list_clusters,
     task_poll)
 
 
-CREATE_PAYLOAD = '''{
+CREATE_PAYLOAD = """{
   "spec": {
     "name": "IMAGE_NAME",
     "resources": {
       "image_type": "IMAGE_TYPE",
       "source_uri": "IMAGE_URL",
+      "initial_placement_ref_list": [
+        {
+          "kind": "cluster",
+          "uuid": "CLUSTER_UUID"
+        }
+      ],
       "source_options": {
-        "allow_insecure_connection": false
+        "allow_insecure_connection": true
       }
     },
     "description": ""
@@ -216,10 +230,12 @@ CREATE_PAYLOAD = '''{
     "kind": "image",
     "name": "IMAGE_NAME"
   }
-}'''
+}"""
 
 
 def set_list_payload(data):
+    """Generate default payload for pagination support"""
+    # filter option via fiql is not supporte for images and clusters API
     length = 100
     offset = 0
     payload = {"length": length, "offset": offset}
@@ -233,32 +249,35 @@ def set_list_payload(data):
 
 
 def generate_argument_spec(result):
+    """Generate a dict with all user arguments"""
+
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
-        pc_hostname=dict(type='str', required=True,
+        pc_hostname=dict(type="str", required=True,
                          fallback=(env_fallback, ["PC_HOSTNAME"])),
-        pc_username=dict(type='str', required=True,
+        pc_username=dict(type="str", required=True,
                          fallback=(env_fallback, ["PC_USERNAME"])),
-        pc_password=dict(type='str', required=True, no_log=True,
+        pc_password=dict(type="str", required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
-        pc_port=dict(default="9440", type='str', required=False),
-        image_name=dict(type='str', required=True),
-        image_type=dict(type='str', required=False),
-        image_url=dict(type='str', required=True),
-        image_uuid=dict(type='str', required=False),
-        state=dict(default='present', type='str', required=False),
-        force=dict(default=False, type='bool', required=False),
-        new_image_name=dict(type='str', required=False),
-        new_image_type=dict(type='str', required=False),
+        pc_port=dict(default="9440", type="str", required=False),
+        image_name=dict(type="str", required=True),
+        image_type=dict(type="str", required=False),
+        image_url=dict(type="str", required=True),
+        image_uuid=dict(type="str", required=False),
+        state=dict(default="present", type="str", required=False),
+        force=dict(default=False, type="bool", required=False),
+        cluster_name=dict(type="str", required=False),
+        new_image_name=dict(type="str", required=False),
+        new_image_type=dict(type="str", required=False),
         data=dict(
-            type='dict',
+            type="dict",
             required=False,
             options=dict(
-                length=dict(type='int'),
-                offset=dict(type='int'),
+                length=dict(default=100, type="int"),
+                offset=dict(default=0, type="int"),
             )
         ),
-        validate_certs=dict(default=True, type='bool', required=False),
+        validate_certs=dict(default=True, type="bool", required=False),
     )
 
     module = AnsibleModule(
@@ -273,11 +292,17 @@ def generate_argument_spec(result):
     return module
 
 
-def create_image_spec(module):
+def create_image_spec(module, client):
+    """Generate spec for image creation"""
 
+    cluster_validated = False
     image_name = module.params.get("image_name")
     image_url = module.params.get("image_url")
     image_type = module.params.get("image_type")
+    cluster_name = module.params.get("cluster_name")
+    create_payload = json.loads(CREATE_PAYLOAD)
+
+    # Auto detect image_type based on url extension
     if not image_type:
         parsed_url = urlparse(image_url)
         path, extension = splitext(parsed_url.path)
@@ -289,7 +314,20 @@ def create_image_spec(module):
             module.fail_json(
                 "Unable to identify image_type, specify the value manually")
 
-    create_payload = json.loads(CREATE_PAYLOAD)
+    # Get cluster UUID
+    if cluster_name:
+        cluster_payload = set_list_payload(module.params.get("data"))
+        cluster_data = list_clusters(cluster_payload, client)
+        for entity in cluster_data["entities"]:
+            if entity["status"]["name"] == cluster_name:
+                # To-do: change cluster_name to a list for supporting multiple clusters
+                create_payload["spec"]["resources"]["initial_placement_ref_list"][0]["uuid"] = entity["metadata"]["uuid"]
+                cluster_validated = True
+        if not cluster_validated:
+            module.fail_json(
+                "Could not find cluster with name {0}".format(cluster_name))
+    else:
+        del create_payload["spec"]["resources"]["initial_placement_ref_list"]
 
     create_payload["metadata"]["name"] = image_name
     create_payload["spec"]["name"] = image_name
@@ -300,10 +338,11 @@ def create_image_spec(module):
 
 
 def _create(module, client, result):
+    """Create image"""
     image_count = 0
-    image_spec = create_image_spec(module)
+    image_spec = create_image_spec(module, client)
     image_uuid_list = []
-    data = set_list_payload(module.params['data'])
+    data = set_list_payload(module.params["data"])
     image_name = module.params.get("image_name")
     force_create = module.params.get("force")
 
@@ -336,9 +375,11 @@ def _create(module, client, result):
 
 
 def _update(module, client, result):
+    """Update Image"""
+
     image_count = 0
     task_uuid_list, image_list, image_uuid_list = [], [], []
-    data = set_list_payload(module.params['data'])
+    data = set_list_payload(module.params["data"])
     image_name = module.params.get("image_name")
     new_image_name = module.params.get("new_image_name")
     new_image_type = module.params.get("new_image_type")
@@ -391,7 +432,9 @@ def _update(module, client, result):
 
 
 def _delete(module, client, result):
-    data = set_list_payload(module.params['data'])
+    """Delete image(s)"""
+
+    data = set_list_payload(module.params["data"])
     force_delete = module.params.get("force")
 
     task_uuid_list, image_list, image_uuid_list = [], [], []
@@ -412,7 +455,7 @@ def _delete(module, client, result):
                 result["failed"] = True
                 return result
         if image_count == 0:
-            result["msg"] = "Did not find any image with name {0}".format(
+            result["msg"] = "Could not find any image with name {0}".format(
                 image_name)
             result["failed"] = True
             return result
@@ -478,5 +521,5 @@ def main():
     arg_spec.exit_json(**result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
