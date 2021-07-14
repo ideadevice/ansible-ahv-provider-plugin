@@ -77,7 +77,7 @@ def task_poll(task_uuid, client):
         elif response.json()["status"] == "FAILED":
             error_out = response.json()["error_detail"]
             return error_out
-        time.sleep(5)
+        time.sleep(10)
 
 
 def list_vms(filter, client):
