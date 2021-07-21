@@ -80,7 +80,7 @@ EXAMPLES = r'''
         validate_certs: False
       register: image_list
     - debug:
-        var: "{{ image_list.image }}"
+        msg: "{{ image_list.images }}"
 
     - name: Get image details
       nutanix.nutanix.nutanix_image_info:
@@ -92,7 +92,7 @@ EXAMPLES = r'''
         validate_certs: False
       register: image_details
     - debug:
-        var: "{{ image_details.image }}"
+        msg: "{{ image_details.image }}"
 '''
 
 RETURN = r'''
