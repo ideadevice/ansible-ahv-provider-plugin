@@ -7,7 +7,7 @@
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 ---
 module: nutanix_image
 
@@ -38,7 +38,6 @@ options:
         - PC port
         type: str
         default: 9440
-        required: False
     image_name:
         description:
         - Image name
@@ -49,7 +48,6 @@ options:
         - Image type, ISO_IMAGE or DISK_IMAGE
         - Auto detetected based on image extension
         type: str
-        required: False
     image_url:
         description:
         - Image url
@@ -62,24 +60,20 @@ options:
         - Deletes all image with the same name when set to true with C(absent)
         type: bool
         default: False
-        required: False
     image_uuid:
         description:
         - Image UUID
         - Specify image for update if there are multiple images with the same name
         type: str
-        required: False
     new_image_name:
         description:
         - New image name for image update
         type: str
-        required: False
     new_image_type:
         description:
         - New image name for image update
         - Accepts ISO_IMAGE or DISK_IMAGE
         type: str
-        required: False
     validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
@@ -100,7 +94,6 @@ options:
         - ' - C(length) (int): length'
         - ' - C(offset) (str): offset'
         type: dict
-        required: False
         suboptions:
             length:
                 description:
@@ -112,9 +105,9 @@ options:
                 type: int
 author:
     - Balu George (@balugeorge)
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
     - name: Create image
       nutanix.nutanix.nutanix_image:
         pc_hostname: "{{ pc_hostname }}"
@@ -178,11 +171,11 @@ EXAMPLES = r'''
       until: job_result.finished
       retries: 30
       delay: 5
-'''
+"""
 
-RETURN = r'''
+RETURN = r"""
 ## TO-DO
-'''
+"""
 
 import json
 import copy
@@ -199,7 +192,7 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     task_poll)
 
 
-CREATE_PAYLOAD = '''{
+CREATE_PAYLOAD = """{
   "spec": {
     "name": "IMAGE_NAME",
     "resources": {
@@ -216,7 +209,7 @@ CREATE_PAYLOAD = '''{
     "kind": "image",
     "name": "IMAGE_NAME"
   }
-}'''
+}"""
 
 
 def set_list_payload(data):
@@ -235,30 +228,30 @@ def set_list_payload(data):
 def generate_argument_spec(result):
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
-        pc_hostname=dict(type='str', required=True,
+        pc_hostname=dict(type="str", required=True,
                          fallback=(env_fallback, ["PC_HOSTNAME"])),
-        pc_username=dict(type='str', required=True,
+        pc_username=dict(type="str", required=True,
                          fallback=(env_fallback, ["PC_USERNAME"])),
-        pc_password=dict(type='str', required=True, no_log=True,
+        pc_password=dict(type="str", required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
-        pc_port=dict(default="9440", type='str', required=False),
-        image_name=dict(type='str', required=True),
-        image_type=dict(type='str', required=False),
-        image_url=dict(type='str', required=True),
-        image_uuid=dict(type='str', required=False),
-        state=dict(default='present', type='str', required=False),
-        force=dict(default=False, type='bool', required=False),
-        new_image_name=dict(type='str', required=False),
-        new_image_type=dict(type='str', required=False),
+        pc_port=dict(type="str", default="9440"),
+        image_name=dict(type="str", required=True),
+        image_type=dict(type="str"),
+        image_url=dict(type="str", required=True),
+        image_uuid=dict(type="str"),
+        state=dict(type="str", default="present"),
+        force=dict(type="bool", default=False),
+        new_image_name=dict(type="str"),
+        new_image_type=dict(type="str"),
         data=dict(
-            type='dict',
+            type="dict",
             required=False,
             options=dict(
-                length=dict(type='int'),
-                offset=dict(type='int'),
+                length=dict(type="int"),
+                offset=dict(type="int")
             )
         ),
-        validate_certs=dict(default=True, type='bool', required=False),
+        validate_certs=dict(type="bool", default=True),
     )
 
     module = AnsibleModule(
@@ -303,7 +296,7 @@ def _create(module, client, result):
     image_count = 0
     image_spec = create_image_spec(module)
     image_uuid_list = []
-    data = set_list_payload(module.params['data'])
+    data = set_list_payload(module.params["data"])
     image_name = module.params.get("image_name")
     force_create = module.params.get("force")
 
@@ -338,7 +331,7 @@ def _create(module, client, result):
 def _update(module, client, result):
     image_count = 0
     task_uuid_list, image_list, image_uuid_list = [], [], []
-    data = set_list_payload(module.params['data'])
+    data = set_list_payload(module.params["data"])
     image_name = module.params.get("image_name")
     new_image_name = module.params.get("new_image_name")
     new_image_type = module.params.get("new_image_type")
@@ -391,7 +384,7 @@ def _update(module, client, result):
 
 
 def _delete(module, client, result):
-    data = set_list_payload(module.params['data'])
+    data = set_list_payload(module.params["data"])
     force_delete = module.params.get("force")
 
     task_uuid_list, image_list, image_uuid_list = [], [], []
@@ -478,5 +471,5 @@ def main():
     arg_spec.exit_json(**result)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

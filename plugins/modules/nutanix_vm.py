@@ -278,7 +278,7 @@ def main():
         pc_password=dict(
             type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])
         ),
-        pc_port=dict(default="9440", type='str', required=False),
+        pc_port=dict(default="9440", type='str'),
         validate_certs=dict(default=True, type='bool'),
         state=dict(
             default="present",
@@ -291,16 +291,12 @@ def main():
             ]
         ),
         name=dict(type='str', required=True),
-        vm_uuid=dict(type='str', required=False),
+        vm_uuid=dict(type='str'),
         cpu=dict(type='int', required=True),
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
         cluster=dict(type='str', required=True),
-        dry_run=dict(
-            default=False,
-            type='bool',
-            required=False
-        ),
+        dry_run=dict(default=False, type='bool'),
         disk_list=dict(
             type='list',
             required=True,
@@ -341,15 +337,12 @@ def main():
             options=dict(
                 cloud_init=dict(
                     type='str',
-                    required=False
                 ),
                 sysprep=dict(
                     type='str',
-                    required=False
                 ),
                 sysprep_install_type=dict(
                     type='str',
-                    required=False,
                     choices=["FRESH", "PREPARED"],
                     default="PREPARED"
                 )

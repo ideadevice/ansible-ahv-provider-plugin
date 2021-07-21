@@ -3,10 +3,11 @@
 
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+
 from __future__ import (absolute_import, division, print_function)
 __metaclass__ = type
 
-DOCUMENTATION = r'''
+DOCUMENTATION = r"""
 ---
 module: nutanix_image_info
 
@@ -30,25 +31,23 @@ options:
     pc_password:
         description:
         - PC password
-        required: True
         type: str
+        required: True
     pc_port:
         description:
         - PC port
         type: str
         default: 9440
-        required: False
     image_name:
         description:
         - Image name
         type: str
-        required: False
     validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
         - This is not recommended for production setup
-        default: True
         type: bool
+        default: True
     data:
         description:
         - Filter payload
@@ -56,7 +55,6 @@ options:
         - ' - C(length) (int): length'
         - ' - C(offset) (str): offset'
         type: dict
-        required: False
         suboptions:
             length:
                 description:
@@ -68,9 +66,9 @@ options:
                 type: int
 author:
     - Balu George (@balugeorge)
-'''
+"""
 
-EXAMPLES = r'''
+EXAMPLES = r"""
     - name: List images
       nutanix.nutanix.nutanix_image_info:
         pc_hostname: "{{ pc_hostname }}"
@@ -93,11 +91,11 @@ EXAMPLES = r'''
       register: image_details
     - debug:
         msg: "{{ image_details.image }}"
-'''
+"""
 
-RETURN = r'''
+RETURN = r"""
 ## TO-DO
-'''
+"""
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, list_images
@@ -119,23 +117,22 @@ def set_list_payload(data):
 def get_image_list():
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
-        pc_hostname=dict(type='str', required=True,
+        pc_hostname=dict(type="str", required=True,
                          fallback=(env_fallback, ["PC_HOSTNAME"])),
-        pc_username=dict(type='str', required=True,
+        pc_username=dict(type="str", required=True,
                          fallback=(env_fallback, ["PC_USERNAME"])),
-        pc_password=dict(type='str', required=True, no_log=True,
+        pc_password=dict(type="str", required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
-        pc_port=dict(default="9440", type='str', required=False),
-        image_name=dict(type='str', required=False),
+        pc_port=dict(type="str", default="9440"),
+        image_name=dict(type="str"),
         data=dict(
-            type='dict',
-            required=False,
+            type="dict",
             options=dict(
-                length=dict(type='int'),
-                offset=dict(type='int'),
+                length=dict(type="int"),
+                offset=dict(type="int")
             )
         ),
-        validate_certs=dict(default=True, type='bool', required=False),
+        validate_certs=dict(type="bool", default=True),
     )
 
     module = AnsibleModule(
