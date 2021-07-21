@@ -108,69 +108,69 @@ author:
 """
 
 EXAMPLES = r"""
-    - name: Create image
-      nutanix.nutanix.nutanix_image:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        image_name: "{{ image_name }}"
-        image_type: "{{ image_type }}"
-        image_url: "{{ image_url }}"
-        state: present
-      delegate_to: localhost
-      register: create_image
-      async: 600
-      poll: 0
-    - name: Wait for image creation
-      async_status:
-        jid: "{{ create_image.ansible_job_id }}"
-      register: job_result
-      until: job_result.finished
-      retries: 30
-      delay: 5
+- name: Create image
+  nutanix.nutanix.nutanix_image:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    image_name: "{{ image_name }}"
+    image_type: "{{ image_type }}"
+    image_url: "{{ image_url }}"
+    state: present
+  delegate_to: localhost
+  register: create_image
+  async: 600
+  poll: 0
+- name: Wait for image creation
+  async_status:
+    jid: "{{ create_image.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 30
+  delay: 5
 
-    - name: Delete image
-      nutanix.nutanix.nutanix_image:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        image_name: "{{ image_name }}"
-        state: absent
-      delegate_to: localhost
-      register: delete_image
-      async: 600
-      poll: 0
-    - name: Wait for image deletion
-      async_status:
-        jid: "{{ delete_image.ansible_job_id }}"
-      register: job_result
-      until: job_result.finished
-      retries: 30
-      delay: 5
+- name: Delete image
+  nutanix.nutanix.nutanix_image:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    image_name: "{{ image_name }}"
+    state: absent
+  delegate_to: localhost
+  register: delete_image
+  async: 600
+  poll: 0
+- name: Wait for image deletion
+  async_status:
+    jid: "{{ delete_image.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 30
+  delay: 5
 
-    - name: Update image
-      nutanix.nutanix.nutanix_image:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        image_name: "{{ image_name }}"
-        new_image_name: "{{ new_image_name }}"
-        new_image_type: "{{ new_image_type }}"
-        state: present
-      delegate_to: localhost
-      register: update_image
-      async: 600
-      poll: 0
-    - name: Wait for image update
-      async_status:
-        jid: "{{ update_image.ansible_job_id }}"
-      register: job_result
-      until: job_result.finished
-      retries: 30
-      delay: 5
+- name: Update image
+  nutanix.nutanix.nutanix_image:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    image_name: "{{ image_name }}"
+    new_image_name: "{{ new_image_name }}"
+    new_image_type: "{{ new_image_type }}"
+    state: present
+  delegate_to: localhost
+  register: update_image
+  async: 600
+  poll: 0
+- name: Wait for image update
+  async_status:
+    jid: "{{ update_image.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 30
+  delay: 5
 """
 
 RETURN = r"""

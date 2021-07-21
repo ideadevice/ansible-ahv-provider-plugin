@@ -69,28 +69,28 @@ author:
 """
 
 EXAMPLES = r"""
-    - name: List images
-      nutanix.nutanix.nutanix_image_info:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        validate_certs: False
-      register: image_list
-    - debug:
-        msg: "{{ image_list.images }}"
+- name: List images
+  nutanix.nutanix.nutanix_image_info:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    validate_certs: False
+  register: image_list
+- debug:
+    msg: "{{ image_list.images }}"
 
-    - name: Get image details
-      nutanix.nutanix.nutanix_image_info:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        image_name: "{{ image_name }}"
-        validate_certs: False
-      register: image_details
-    - debug:
-        msg: "{{ image_details.image }}"
+- name: Get image details
+  nutanix.nutanix.nutanix_image_info:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    image_name: "{{ image_name }}"
+    validate_certs: False
+  register: image_details
+- debug:
+    msg: "{{ image_details.image }}"
 """
 
 RETURN = r"""

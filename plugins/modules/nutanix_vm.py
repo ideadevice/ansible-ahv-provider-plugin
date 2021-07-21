@@ -184,42 +184,42 @@ author:
 '''
 
 EXAMPLES = r'''
-  - name: Create VM
-    nutanix.nutanix.nutanix_vm:
-      pc_hostname: "{{ pc_hostname }}"
-      pc_username: "{{ pc_username }}"
-      pc_password: "{{ pc_password }}"
-      pc_port: 9440
-      validate_certs: False
-      name: "vm-0001"
-      cpu: 2
-      vcpu: 2
-      memory: 2048
-      cluster: "{{ cluster name or uuid }}"
-      disk_list:
-      - device_type: DISK
-        clone_from_image: "{{ image name or uuid }}"
-        adapter_type: SCSI
-      - device_type: DISK
-        adapter_type: SCSI
-        size_mib: 10240
-      nic_list:
-      - uuid: "{{ nic name or uuid }}"
-      guest_customization:
-        cloud_init: |-
-            #cloud-config
-            users:
-              - name: centos
-                sudo: ['ALL=(ALL) NOPASSWD:ALL']
-            chpasswd:
-              list: |
-                centos:nutanix/4u
-              expire: False
-            ssh_pwauth: true
-    delegate_to: localhost
-    register: vm
-  - debug:
-        msg: "{{ vm }}"
+- name: Create VM
+  nutanix.nutanix.nutanix_vm:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    validate_certs: False
+    name: "vm-0001"
+    cpu: 2
+    vcpu: 2
+    memory: 2048
+    cluster: "{{ cluster name or uuid }}"
+    disk_list:
+    - device_type: DISK
+      clone_from_image: "{{ image name or uuid }}"
+      adapter_type: SCSI
+    - device_type: DISK
+      adapter_type: SCSI
+      size_mib: 10240
+    nic_list:
+    - uuid: "{{ nic name or uuid }}"
+    guest_customization:
+      cloud_init: |-
+          #cloud-config
+          users:
+            - name: centos
+              sudo: ['ALL=(ALL) NOPASSWD:ALL']
+          chpasswd:
+            list: |
+              centos:nutanix/4u
+            expire: False
+          ssh_pwauth: true
+  delegate_to: localhost
+  register: vm
+- debug:
+      msg: "{{ vm }}"
 '''
 
 
