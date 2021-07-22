@@ -86,20 +86,20 @@ author:
 '''
 
 EXAMPLES = r'''
-    - name: List vms
-      nutanix.nutanix.nutanix_vm_info:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        validate_certs: False
-        data:
-            filter: "vm_name=={{ vm_name }}"
-            offset: 0
-            length: 100
-      register: result
-    - debug:
-        var: "{{ result.vms }}"
+- name: List vms
+  nutanix.nutanix.nutanix_vm_info:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    validate_certs: False
+    data:
+        filter: "vm_name=={{ vm_name }}"
+        offset: 0
+        length: 100
+  register: result
+- debug:
+    var: "{{ result.vms }}"
 
 '''
 

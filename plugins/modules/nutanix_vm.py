@@ -184,42 +184,42 @@ author:
 '''
 
 EXAMPLES = r'''
-  - name: Create VM
-    nutanix.nutanix.nutanix_vm:
-      pc_hostname: "{{ pc_hostname }}"
-      pc_username: "{{ pc_username }}"
-      pc_password: "{{ pc_password }}"
-      pc_port: 9440
-      validate_certs: False
-      name: "vm-0001"
-      cpu: 2
-      vcpu: 2
-      memory: 2048
-      cluster: "{{ cluster name or uuid }}"
-      disk_list:
-      - device_type: DISK
-        clone_from_image: "{{ image name or uuid }}"
-        adapter_type: SCSI
-      - device_type: DISK
-        adapter_type: SCSI
-        size_mib: 10240
-      nic_list:
-      - uuid: "{{ nic name or uuid }}"
-      guest_customization:
-        cloud_init: |-
-            #cloud-config
-            users:
-              - name: centos
-                sudo: ['ALL=(ALL) NOPASSWD:ALL']
-            chpasswd:
-              list: |
-                centos:nutanix/4u
-              expire: False
-            ssh_pwauth: true
-    delegate_to: localhost
-    register: vm
-  - debug:
-        msg: "{{ vm }}"
+- name: Create VM
+  nutanix.nutanix.nutanix_vm:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    validate_certs: False
+    name: "vm-0001"
+    cpu: 2
+    vcpu: 2
+    memory: 2048
+    cluster: "{{ cluster name or uuid }}"
+    disk_list:
+    - device_type: DISK
+      clone_from_image: "{{ image name or uuid }}"
+      adapter_type: SCSI
+    - device_type: DISK
+      adapter_type: SCSI
+      size_mib: 10240
+    nic_list:
+    - uuid: "{{ nic name or uuid }}"
+    guest_customization:
+      cloud_init: |-
+          #cloud-config
+          users:
+            - name: centos
+              sudo: ['ALL=(ALL) NOPASSWD:ALL']
+          chpasswd:
+            list: |
+              centos:nutanix/4u
+            expire: False
+          ssh_pwauth: true
+  delegate_to: localhost
+  register: vm
+- debug:
+      msg: "{{ vm }}"
 '''
 
 
@@ -278,7 +278,7 @@ def main():
         pc_password=dict(
             type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])
         ),
-        pc_port=dict(default="9440", type='str', required=False),
+        pc_port=dict(default="9440", type='str'),
         validate_certs=dict(default=True, type='bool'),
         state=dict(
             default="present",
@@ -291,16 +291,12 @@ def main():
             ]
         ),
         name=dict(type='str', required=True),
-        vm_uuid=dict(type='str', required=False),
+        vm_uuid=dict(type='str'),
         cpu=dict(type='int', required=True),
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
         cluster=dict(type='str', required=True),
-        dry_run=dict(
-            default=False,
-            type='bool',
-            required=False
-        ),
+        dry_run=dict(default=False, type='bool'),
         disk_list=dict(
             type='list',
             required=True,
@@ -341,15 +337,12 @@ def main():
             options=dict(
                 cloud_init=dict(
                     type='str',
-                    required=False
                 ),
                 sysprep=dict(
                     type='str',
-                    required=False
                 ),
                 sysprep_install_type=dict(
                     type='str',
-                    required=False,
                     choices=["FRESH", "PREPARED"],
                     default="PREPARED"
                 )

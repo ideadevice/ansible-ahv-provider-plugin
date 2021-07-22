@@ -38,7 +38,6 @@ options:
         - PC port
         type: str
         default: 9440
-        required: False
     image_name:
         description:
         - Image name
@@ -49,35 +48,37 @@ options:
         - Image type, ISO_IMAGE or DISK_IMAGE
         - Auto detetected based on image extension
         type: str
-        required: False
     image_url:
         description:
         - Image url
         type: str
         required: True
+    force:
+        description:
+        - Used with C(present) or C(absent)
+        - Creates of multiple images with same name when set to true with C(present)
+        - Deletes all image with the same name when set to true with C(absent)
+        type: bool
+        default: False
     image_uuid:
         description:
         - Image UUID
         - Specify image for update if there are multiple images with the same name
         type: str
-        required: False
     cluster_name:
         description:
         - Cluster name for image placement in the cluster
         - Image is placed directly on all clusters by default
         type: str
-        required: False
     new_image_name:
         description:
         - New image name for image update
         type: str
-        required: False
     new_image_type:
         description:
         - New image name for image update
         - Accepts ISO_IMAGE or DISK_IMAGE
         type: str
-        required: False
     validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
@@ -91,7 +92,6 @@ options:
         - ' - C(length) (int): length'
         - ' - C(offset) (str): offset'
         type: dict
-        required: False
         suboptions:
             length:
                 description:
@@ -123,69 +123,69 @@ author:
 """
 
 EXAMPLES = r"""
-    - name: Create image
-      nutanix.nutanix.nutanix_image:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        image_name: "{{ image_name }}"
-        image_type: "{{ image_type }}"
-        image_url: "{{ image_url }}"
-        state: present
-      delegate_to: localhost
-      register: create_image
-      async: 600
-      poll: 0
-    - name: Wait for image creation
-      async_status:
-        jid: "{{ create_image.ansible_job_id }}"
-      register: job_result
-      until: job_result.finished
-      retries: 30
-      delay: 5
+- name: Create image
+  nutanix.nutanix.nutanix_image:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    image_name: "{{ image_name }}"
+    image_type: "{{ image_type }}"
+    image_url: "{{ image_url }}"
+    state: present
+  delegate_to: localhost
+  register: create_image
+  async: 600
+  poll: 0
+- name: Wait for image creation
+  async_status:
+    jid: "{{ create_image.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 15
+  delay: 10
 
-    - name: Delete image
-      nutanix.nutanix.nutanix_image:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        image_name: "{{ image_name }}"
-        state: absent
-      delegate_to: localhost
-      register: delete_image
-      async: 600
-      poll: 0
-    - name: Wait for image deletion
-      async_status:
-        jid: "{{ delete_image.ansible_job_id }}"
-      register: job_result
-      until: job_result.finished
-      retries: 30
-      delay: 5
+- name: Delete image
+  nutanix.nutanix.nutanix_image:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    image_name: "{{ image_name }}"
+    state: absent
+  delegate_to: localhost
+  register: delete_image
+  async: 600
+  poll: 0
+- name: Wait for image deletion
+  async_status:
+    jid: "{{ delete_image.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 15
+  delay: 10
 
-    - name: Update image
-      nutanix.nutanix.nutanix_image:
-        pc_hostname: "{{ pc_hostname }}"
-        pc_username: "{{ pc_username }}"
-        pc_password: "{{ pc_password }}"
-        pc_port: 9440
-        image_name: "{{ image_name }}"
-        new_image_name: "{{ new_image_name }}"
-        new_image_type: "{{ new_image_type }}"
-        state: present
-      delegate_to: localhost
-      register: update_image
-      async: 600
-      poll: 0
-    - name: Wait for image update
-      async_status:
-        jid: "{{ update_image.ansible_job_id }}"
-      register: job_result
-      until: job_result.finished
-      retries: 15
-      delay: 10
+- name: Update image
+  nutanix.nutanix.nutanix_image:
+    pc_hostname: "{{ pc_hostname }}"
+    pc_username: "{{ pc_username }}"
+    pc_password: "{{ pc_password }}"
+    pc_port: 9440
+    image_name: "{{ image_name }}"
+    new_image_name: "{{ new_image_name }}"
+    new_image_type: "{{ new_image_type }}"
+    state: present
+  delegate_to: localhost
+  register: update_image
+  async: 600
+  poll: 0
+- name: Wait for image update
+  async_status:
+    jid: "{{ update_image.ansible_job_id }}"
+  register: job_result
+  until: job_result.finished
+  retries: 15
+  delay: 10
 """
 
 RETURN = r"""
@@ -259,25 +259,24 @@ def generate_argument_spec(result):
                          fallback=(env_fallback, ["PC_USERNAME"])),
         pc_password=dict(type="str", required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
-        pc_port=dict(default="9440", type="str", required=False),
+        pc_port=dict(type="str", default="9440"),
         image_name=dict(type="str", required=True),
-        image_type=dict(type="str", required=False),
+        image_type=dict(type="str"),
         image_url=dict(type="str", required=True),
-        image_uuid=dict(type="str", required=False),
-        state=dict(default="present", type="str", required=False),
-        force=dict(default=False, type="bool", required=False),
-        cluster_name=dict(type="str", required=False),
-        new_image_name=dict(type="str", required=False),
-        new_image_type=dict(type="str", required=False),
+        image_uuid=dict(type="str"),
+        state=dict(type="str", default="present"),
+        force=dict(type="bool", default=False),
+        cluster_name=dict(type="str"),
+        new_image_name=dict(type="str"),
+        new_image_type=dict(type="str"),
         data=dict(
             type="dict",
-            required=False,
             options=dict(
-                length=dict(default=100, type="int"),
-                offset=dict(default=0, type="int"),
+                length=dict(type="int", default=100),
+                offset=dict(type="int", default=0)
             )
         ),
-        validate_certs=dict(default=True, type="bool", required=False),
+        validate_certs=dict(type="bool", default=True),
     )
 
     module = AnsibleModule(
