@@ -88,7 +88,7 @@ author:
 '''
 
 EXAMPLES = r'''
-- name: List images
+- name: List vms
   nutanix.nutanix.nutanix_vm_info:
     pc_hostname: "{{ pc_hostname }}"
     pc_username: "{{ pc_username }}"
