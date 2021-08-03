@@ -719,13 +719,22 @@ def _update(params, client, vm_uuid=None):
         task_uuid=''
     )
 
+    need_restart = False
+
     if not vm_uuid:
         vm_uuid = get_vm_uuid(params, client)[0]
 
     vm_json = get_vm(vm_uuid, client)
 
+    if (
+        params['cpu'] < vm_json["status"]["resources"]["num_sockets"]  or
+        params['vcpu'] < vm_json["status"]["resources"]["num_vcpus_per_socket"] or
+        params['memory'] < vm_json["status"]["resources"]["memory_size_mib"]
+    ):
+        need_restart = True
+
     # Poweroff the VM
-    if vm_json["status"]["resources"]["power_state"] == "ON":
+    if need_restart:
 
         del vm_json["status"]
         vm_json["spec"]["resources"]["power_state"] = "OFF"
