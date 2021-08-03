@@ -142,9 +142,9 @@ options:
         type: list
         elements: dict
         suboptions:
-            uuid:
+            subnet:
                 description:
-                - Subnet UUID
+                - Subnet UUID or Name
                 type: str
                 required: True
         required: True
@@ -204,7 +204,7 @@ EXAMPLES = r'''
       adapter_type: SCSI
       size_mib: 10240
     nic_list:
-    - uuid: "{{ nic name or uuid }}"
+    - subnet: "{{ subnet name or uuid }}"
     guest_customization:
       cloud_init: |-
           #cloud-config
@@ -233,11 +233,15 @@ import base64
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
+    get_cluster_uuid,
     get_vm_uuid,
     get_vm,
     create_vm,
     update_vm,
     delete_vm,
+    get_subnet_uuid,
+    get_image_uuid,
+    is_uuid,
     task_poll
 )
 
@@ -325,7 +329,7 @@ def main():
             required=True,
             elements='dict',
             options=dict(
-                uuid=dict(
+                subnet=dict(
                     type='str',
                     required=True
                 )
@@ -385,17 +389,27 @@ def entry_point(module, client):
     return func(module.params, client)
 
 
-def create_vm_spec(params, vm_spec):
+def create_vm_spec(params, vm_spec, client):
     nic_list = []
     disk_list = []
 
     for nic in params['nic_list']:
+        if is_uuid(nic["subnet"]):
+            subnet_uuid = nic["subnet"]
+        else:
+            nic_uuid = get_subnet_uuid(nic["subnet"], client)
+            if nic_uuid:
+                subnet_uuid = nic_uuid[0]
+            else:
+                error = "Could not find subnet '{0}'.".format(nic["subnet"])
+                return None, error
+
         nic_list.append({
             "nic_type": "NORMAL_NIC",
             "vlan_mode": "ACCESS",
             "subnet_reference": {
                 "kind": "subnet",
-                "uuid": nic["uuid"]
+                "uuid": subnet_uuid
             },
             "is_connected": True
         })
@@ -411,6 +425,16 @@ def create_vm_spec(params, vm_spec):
             sata_counter += 1
 
         if disk["clone_from_image"]:
+            if is_uuid(disk["clone_from_image"]):
+                image_uuid = disk["clone_from_image"]
+            else:
+                image_uuids = get_image_uuid(disk["clone_from_image"], client)
+                if image_uuids:
+                    image_uuid = image_uuids[0]
+                else:
+                    error = "Could not find image '{0}'.".format(disk["clone_from_image"])
+                    return None, error
+
             disk_list.append({
                 "device_properties": {
                     "disk_address": {
@@ -421,7 +445,7 @@ def create_vm_spec(params, vm_spec):
                 },
                 "data_source_reference": {
                     "kind": "image",
-                    "uuid": disk["clone_from_image"]
+                    "uuid": image_uuid
                 }
             })
         else:
@@ -466,12 +490,22 @@ def create_vm_spec(params, vm_spec):
                 }
             }
 
-    vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": params['cluster']}
+    if is_uuid(params['cluster']):
+        cluster_uuid = params['cluster']
+    else:
+        cluster_uuid = get_cluster_uuid(params['cluster'], client)
+        if cluster_uuid:
+            cluster_uuid = cluster_uuid[0]
+        else:
+            error = "Could not find cluster '{0}'.".format(params['cluster'])
+            return None, error
 
-    return vm_spec
+    vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": cluster_uuid}
+
+    return vm_spec, None
 
 
-def update_vm_spec(params, vm_data):
+def update_vm_spec(params, vm_data, client):
 
     nic_list = []
     disk_list = []
@@ -501,6 +535,16 @@ def update_vm_spec(params, vm_data):
             sata_counter += 1
 
         if disk["clone_from_image"]:
+
+            if is_uuid(disk["clone_from_image"]):
+                image_uuid = disk["clone_from_image"]
+            else:
+                image_uuids = get_image_uuid(disk["clone_from_image"], client)
+                if image_uuids:
+                    image_uuid = image_uuids[0]
+                else:
+                    error = "Could not find image '{0}'.".format(disk["clone_from_image"])
+                    return None, error
             try:
                 spec_disk = spec_disk_list[i]
                 disk_list.append(spec_disk)
@@ -515,7 +559,7 @@ def update_vm_spec(params, vm_data):
                     },
                     "data_source_reference": {
                         "kind": "image",
-                        "uuid": disk["clone_from_image"]
+                        "uuid": image_uuid
                     }
                 })
         else:
@@ -540,6 +584,16 @@ def update_vm_spec(params, vm_data):
         disk_list.append(guest_customization_cdrom)
 
     for i, nic in enumerate(param_nic_list):
+        for nic in params['nic_list']:
+            if is_uuid(nic["subnet"]):
+                subnet_uuid = nic["subnet"]
+            else:
+                nic_uuid = get_subnet_uuid(nic["subnet"], client)
+                if nic_uuid:
+                    subnet_uuid = nic_uuid[0]
+                else:
+                    error = "Could not find subnet '{0}'.".format(nic["subnet"])
+                    return None, error
         try:
             spec_nic = spec_nic_list[i]
             nic_list.append(spec_nic)
@@ -549,7 +603,7 @@ def update_vm_spec(params, vm_data):
                 "vlan_mode": "ACCESS",
                 "subnet_reference": {
                     "kind": "subnet",
-                    "uuid": nic["uuid"]
+                    "uuid": subnet_uuid
                 },
                 "is_connected": True
             })
@@ -593,7 +647,11 @@ def _create(params, client):
 
     # Create VM Spec
     vm_spec = CREATE_PAYLOAD
-    vm_spec = create_vm_spec(params, vm_spec)
+    vm_spec, error = create_vm_spec(params, vm_spec, client)
+    if error:
+        result["failed"] = True
+        result["msg"] = error
+        return result
 
     if params['dry_run'] is True:
         result["vm_spec"] = vm_spec
@@ -661,7 +719,7 @@ def _update(params, client, vm_uuid=None):
     # Update the VM
     if "status" in vm_json:
         del vm_json["status"]
-    updated_vm_spec = update_vm_spec(params, vm_json)
+    updated_vm_spec = update_vm_spec(params, vm_json, client)
     updated_vm_spec["spec"]["resources"]["power_state"] = "ON"
     result["updated_vm_spec"] = updated_vm_spec
 
@@ -684,25 +742,30 @@ def _update(params, client, vm_uuid=None):
 
 def _delete(params, client):
 
-    vm_uuid = None
-
-    if params["vm_uuid"]:
-        vm_uuid = params["vm_uuid"]
-
     result = dict(
         changed=False,
         task_uuid='',
     )
 
-    vm_uuid_list = get_vm_uuid(params, client)
-    if len(vm_uuid_list) > 1 and not vm_uuid:
-        result["failed"] = True
-        result["msg"] = """Multiple Vm's with same name '%s' exists in the cluster.
-            Specify vm_uuid of the VM you want to delete.""" % params["name"]
-        result["vm_uuid"] = vm_uuid_list
-        return result
+    vm_uuid = None
+    vm_name = params["name"]
 
-    if not vm_uuid:
+    if params["vm_uuid"]:
+        vm_uuid = params["vm_uuid"]
+    else:
+        vm_uuid_list = get_vm_uuid(params, client)
+        if not vm_uuid_list:
+            result["failed"] = True
+            result["msg"] = "VM with given name '{0}' not found.".format(vm_name)
+            return result
+
+        if len(vm_uuid_list) > 1:
+            result["failed"] = True
+            result["msg"] = """Multiple Vm's with same name '{0}' exists in the cluster.
+                Specify vm_uuid of the VM you want to delete.""".format(vm_name)
+            result["vm_uuid"] = vm_uuid_list
+            return result
+
         vm_uuid = vm_uuid_list[0]
 
     # Delete VM

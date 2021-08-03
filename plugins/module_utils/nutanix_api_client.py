@@ -8,6 +8,7 @@ __metaclass__ = type
 import json
 import traceback
 import time
+import uuid
 from ansible.module_utils.basic import missing_required_lib
 
 try:
@@ -143,6 +144,25 @@ def list_images(filter, client):
     return image_list_response.json()
 
 
+def get_image_uuid(image_name, client):
+    length = 250
+    offset = 0
+    total_matches = 99999
+    image_uuid = []
+    while offset < total_matches:
+        filter = {"filter": "name=={0}".format(
+            image_name), "length": length, "offset": offset}
+        image_list = list_images(filter, client)
+        for subnet in image_list["entities"]:
+            if subnet["status"]["name"] == image_name:
+                image_uuid.append(subnet["metadata"]["uuid"])
+
+        total_matches = image_list["metadata"]["total_matches"]
+        offset += length
+
+    return image_uuid
+
+
 def get_image(image_uuid, client):
     get_image = client.request(
         api_endpoint="v3/images/{0}".format(image_uuid), method="GET", data=None)
@@ -172,3 +192,61 @@ def delete_image(image_uuid, client):
     response = client.request(
         api_endpoint="v3/images/{0}".format(image_uuid), method="DELETE", data=None)
     return response.json()["status"]["execution_context"]["task_uuid"]
+
+
+def list_clusters(filter, client):
+    cluster_list_response = client.request(
+        api_endpoint="v3/clusters/list", method="POST", data=json.dumps(filter))
+    return cluster_list_response.json()
+
+
+def get_cluster_uuid(cluster_name, client):
+    length = 250
+    offset = 0
+    total_matches = 99999
+    cluster_uuid = []
+    while offset < total_matches:
+        filter = {"filter": "name=={0}".format(
+            cluster_name), "length": length, "offset": offset}
+        cluster_list = list_clusters(filter, client)
+        for cluster in cluster_list["entities"]:
+            if cluster["status"]["name"] == cluster_name:
+                cluster_uuid.append(cluster["metadata"]["uuid"])
+
+        total_matches = cluster_list["metadata"]["total_matches"]
+        offset += length
+
+    return cluster_uuid
+
+
+def list_subnets(filter, client):
+    subnet_list_response = client.request(
+        api_endpoint="v3/subnets/list", method="POST", data=json.dumps(filter))
+    return subnet_list_response.json()
+
+
+def get_subnet_uuid(subnet_name, client):
+    length = 250
+    offset = 0
+    total_matches = 99999
+    subnet_uuid = []
+    while offset < total_matches:
+        filter = {"filter": "name=={0}".format(
+            subnet_name), "length": length, "offset": offset}
+        subnet_list = list_subnets(filter, client)
+        for subnet in subnet_list["entities"]:
+            if subnet["status"]["name"] == subnet_name:
+                subnet_uuid.append(subnet["metadata"]["uuid"])
+
+        total_matches = subnet_list["metadata"]["total_matches"]
+        offset += length
+
+    return subnet_uuid
+
+
+def is_uuid(UUID):
+    try:
+        uuid.UUID(UUID)
+        return True
+    except ValueError:
+        return False
