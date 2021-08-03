@@ -578,9 +578,12 @@ def update_vm_spec(params, vm_data, client):
         else:
             try:
                 spec_disk = spec_disk_list[i]
-                if spec_disk["disk_size_mib"] != disk["size_mib"]:
-                    spec_disk["disk_size_mib"] = disk["size_mib"]
-                disk_list.append(spec_disk)
+                if disk["device_type"] == "CDROM":
+                    disk_list.append(spec_disk)
+                else:
+                    if spec_disk["disk_size_mib"] != disk["size_mib"]:
+                        spec_disk["disk_size_mib"] = disk["size_mib"]
+                    disk_list.append(spec_disk)
             except IndexError:
                 if disk["device_type"] == "CDROM":
                     disk_list.append({
