@@ -443,22 +443,34 @@ def create_vm_spec(params, vm_spec, client):
                     },
                     "device_type": disk["device_type"]
                 },
+                "disk_size_mib": disk["size_mib"],
                 "data_source_reference": {
                     "kind": "image",
                     "uuid": image_uuid
                 }
             })
         else:
-            disk_list.append({
-                "device_properties": {
-                    "disk_address": {
-                        "device_index": counter,
-                        "adapter_type": disk["adapter_type"]
+            if disk["device_type"] == "CDROM":
+                disk_list.append({
+                    "device_properties": {
+                        "disk_address": {
+                            "device_index": counter,
+                            "adapter_type": disk["adapter_type"]
+                        },
+                        "device_type": disk["device_type"]
+                    }
+                })
+            else:
+                disk_list.append({
+                    "device_properties": {
+                        "disk_address": {
+                            "device_index": counter,
+                            "adapter_type": disk["adapter_type"]
+                        },
+                        "device_type": disk["device_type"]
                     },
-                    "device_type": disk["device_type"]
-                },
-                "disk_size_mib": disk["size_mib"]
-            })
+                    "disk_size_mib": disk["size_mib"]
+                })
 
     vm_spec["spec"]["name"] = params['name']
     vm_spec["spec"]["resources"]["num_sockets"] = params['cpu']
@@ -557,6 +569,7 @@ def update_vm_spec(params, vm_data, client):
                         },
                         "device_type": disk["device_type"]
                     },
+                    "disk_size_mib": disk["size_mib"],
                     "data_source_reference": {
                         "kind": "image",
                         "uuid": image_uuid
@@ -569,16 +582,27 @@ def update_vm_spec(params, vm_data, client):
                     spec_disk["disk_size_mib"] = disk["size_mib"]
                 disk_list.append(spec_disk)
             except IndexError:
-                disk_list.append({
-                    "device_properties": {
-                        "disk_address": {
-                            "device_index": counter,
-                            "adapter_type": disk["adapter_type"]
+                if disk["device_type"] == "CDROM":
+                    disk_list.append({
+                        "device_properties": {
+                            "disk_address": {
+                                "device_index": counter,
+                                "adapter_type": disk["adapter_type"]
+                            },
+                            "device_type": disk["device_type"]
+                        }
+                    })
+                else:
+                    disk_list.append({
+                        "device_properties": {
+                            "disk_address": {
+                                "device_index": counter,
+                                "adapter_type": disk["adapter_type"]
+                            },
+                            "device_type": disk["device_type"]
                         },
-                        "device_type": disk["device_type"]
-                    },
-                    "disk_size_mib": disk["size_mib"]
-                })
+                        "disk_size_mib": disk["size_mib"]
+                    })
 
     if guest_customization_cdrom:
         disk_list.append(guest_customization_cdrom)
