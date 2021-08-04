@@ -81,10 +81,10 @@ def task_poll(task_uuid, client):
         time.sleep(5)
 
 
-def list_vms(filter, client):
-    vm_list_response = client.request(
-        api_endpoint="v3/vms/list", method="POST", data=json.dumps(filter))
-    return vm_list_response.json()
+def list_entities(api, filter, client):
+    response = client.request(
+        api_endpoint="v3/{0}/list".format(api), method="POST", data=json.dumps(filter))
+    return response.json()
 
 
 def get_vm_uuid(params, client):
@@ -96,7 +96,7 @@ def get_vm_uuid(params, client):
     while offset < total_matches:
         filter = {"filter": "vm_name=={0}".format(
             vm_name), "length": length, "offset": offset}
-        vms_list = list_vms(filter, client)
+        vms_list = list_entities('vms', filter, client)
         for vm in vms_list["entities"]:
             if vm["status"]["name"] == vm_name:
                 vm_uuid.append(vm["metadata"]["uuid"])
@@ -138,12 +138,6 @@ def delete_vm(vm_uuid, client):
     return response.json()["status"]["execution_context"]["task_uuid"]
 
 
-def list_images(filter, client):
-    image_list_response = client.request(
-        api_endpoint="v3/images/list", method="POST", data=json.dumps(filter))
-    return image_list_response.json()
-
-
 def get_image_uuid(image_name, client):
     length = 250
     offset = 0
@@ -152,7 +146,7 @@ def get_image_uuid(image_name, client):
     while offset < total_matches:
         filter = {"filter": "name=={0}".format(
             image_name), "length": length, "offset": offset}
-        image_list = list_images(filter, client)
+        image_list = list_entities('images', filter, client)
         for subnet in image_list["entities"]:
             if subnet["status"]["name"] == image_name:
                 image_uuid.append(subnet["metadata"]["uuid"])
@@ -194,12 +188,6 @@ def delete_image(image_uuid, client):
     return response.json()["status"]["execution_context"]["task_uuid"]
 
 
-def list_clusters(filter, client):
-    cluster_list_response = client.request(
-        api_endpoint="v3/clusters/list", method="POST", data=json.dumps(filter))
-    return cluster_list_response.json()
-
-
 def get_cluster_uuid(cluster_name, client):
     length = 250
     offset = 0
@@ -208,7 +196,7 @@ def get_cluster_uuid(cluster_name, client):
     while offset < total_matches:
         filter = {"filter": "name=={0}".format(
             cluster_name), "length": length, "offset": offset}
-        cluster_list = list_clusters(filter, client)
+        cluster_list = list_entities('clusters', filter, client)
         for cluster in cluster_list["entities"]:
             if cluster["status"]["name"] == cluster_name:
                 cluster_uuid.append(cluster["metadata"]["uuid"])
@@ -219,12 +207,6 @@ def get_cluster_uuid(cluster_name, client):
     return cluster_uuid
 
 
-def list_subnets(filter, client):
-    subnet_list_response = client.request(
-        api_endpoint="v3/subnets/list", method="POST", data=json.dumps(filter))
-    return subnet_list_response.json()
-
-
 def get_subnet_uuid(subnet_name, client):
     length = 250
     offset = 0
@@ -233,7 +215,7 @@ def get_subnet_uuid(subnet_name, client):
     while offset < total_matches:
         filter = {"filter": "name=={0}".format(
             subnet_name), "length": length, "offset": offset}
-        subnet_list = list_subnets(filter, client)
+        subnet_list = list_entities('subnets', filter, client)
         for subnet in subnet_list["entities"]:
             if subnet["status"]["name"] == subnet_name:
                 subnet_uuid.append(subnet["metadata"]["uuid"])
@@ -300,8 +282,12 @@ def set_payload_keys(params, payload_format, payload):
 
         if params[i] is None:
             continue
-        elif type(params[i]) is list or type(params[i]) is dict:
+        elif type(params[i]) is dict:
             payload[i] = set_payload_keys(params[i], payload_format[i], {})
+        elif type(params[i]) is list:
+            payload[i]=[]
+            for item in params[i]:
+                payload[i].append(set_payload_keys(item, payload_format[i][0], {}))
         elif type(params[i]) is str or type(params[i]) is int:
             payload[i] = params[i]
     return payload

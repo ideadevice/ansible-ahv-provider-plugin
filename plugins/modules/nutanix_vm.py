@@ -299,37 +299,37 @@ DISK_PAYLOAD = {
 }
 
 NIC_PAYLOAD = {
-    "nic_type": "string",
-    "uuid": "string",
+    "nic_type": "",
+    "uuid": "",
     "ip_endpoint_list": [
         {
-            "ip": "string",
-            "type": "string",
+            "ip": "",
+            "type": "",
             "gateway_address_list": [
-                "string"
+                ""
             ],
             "prefix_length": 0,
-            "ip_type": "string"
+            "ip_type": ""
         }
     ],
     "num_queues": 0,
     "secondary_ip_address_list": [
-        "string"
+        ""
     ],
-    "network_function_nic_type": "string",
+    "network_function_nic_type": "",
     "network_function_chain_reference": {
-        "kind": "network_function_chain",
-        "name": "string",
-        "uuid": "string"
+        "kind": "",
+        "name": "",
+        "uuid": ""
     },
-    "vlan_mode": "string",
-    "mac_address": "string",
+    "vlan_mode": "",
+    "mac_address": "",
     "subnet_reference": {
         "kind": "subnet",
-        "name": "string",
-        "uuid": "string"
+        "name": "",
+        "uuid": ""
     },
-    "model": "string",
+    "model": "",
     "is_connected": True,
     "trunked_vlan_list": [
         0
@@ -367,6 +367,7 @@ def main():
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
         cluster=dict(type='str', required=True),
+        power_state=dict(type='str', default="ON", choices=["ON", "OFF"]),
         dry_run=dict(default=False, type='bool'),
         disk_list=dict(
             type='list',
@@ -398,7 +399,8 @@ def main():
                                     type='str'
                                 ),
                                 kind=dict(
-                                    type='str'
+                                    type='str',
+                                    default="storage_container"
                                 ),
                                 url=dict(
                                     type='str'
@@ -440,7 +442,8 @@ def main():
                             type='str'
                         ),
                         kind=dict(
-                            type='str'
+                            type='str',
+                            default="image"
                         ),
                         url=dict(
                             type='str'
@@ -454,10 +457,96 @@ def main():
             required=True,
             elements='dict',
             options=dict(
-                subnet=dict(
+                uuid=dict(
+                    type='str'
+                ),
+                nic_type=dict(
                     type='str',
-                    required=True
-                )
+                    default="NORMAL_NIC",
+                    choices=["NORMAL_NIC"]
+                ),
+                num_queues=dict(
+                    type='int'
+                ),
+                network_function_nic_type=dict(
+                    type='str'
+                ),
+                vlan_mode=dict(
+                    type='str',
+                    default="ACCESS",
+                    choices=["ACCESS"]
+                ),
+                mac_address=dict(
+                    type='str'
+                ),
+                model=dict(
+                    type='str'
+                ),
+                is_connected=dict(
+                    type='bool',
+                    default=True
+                ),
+                ip_endpoint_list=dict(
+                    type='list',
+                    elements='dict',
+                    options=dict(
+                        ip=dict(
+                            type='str'
+                        ),
+                        type=dict(
+                            type='str',
+                            default="ASSIGNED",
+                            choices=["ASSIGNED", "LEARNED"]
+                        ),
+                        prefix_length=dict(
+                            type='int'
+                        ),
+                        ip_type=dict(
+                            type='str',
+                            choices=["STATIC", "DHCP"]
+                        ),
+                        gateway_address_list=dict(
+                            type='list'
+                        )
+                    )
+                ),
+                secondary_ip_address_list=dict(
+                    type='list'
+                ),
+                network_function_chain_reference=dict(
+                    type='dict',
+                    options=dict(
+                        name=dict(
+                            type='str'
+                        ),
+                        kind=dict(
+                            type='str',
+                            default="network_function_chain"
+                        ),
+                        uuid=dict(
+                            type='str'
+                        ) 
+                    )
+                ),
+                subnet_reference=dict(
+                    type='dict',
+                    required=True,
+                    options=dict(
+                        name=dict(
+                            type='str'
+                        ),
+                        kind=dict(
+                            type='str',
+                            default="subnet"
+                        ),
+                        uuid=dict(
+                            type='str'
+                        ) 
+                    )
+                ),
+                trunked_vlan_list=dict(
+                    type='list'
+                ),
             )
         ),
         guest_customization=dict(
@@ -528,100 +617,105 @@ def create_vm_spec(params, vm_spec, client):
             error = "Could not find cluster '{0}'.".format(params['cluster'])
             return None, error
 
-    for nic in params['nic_list']:
-        if is_uuid(nic["subnet"]):
-            subnet_uuid = nic["subnet"]
-        else:
-            nic_uuid = get_subnet_uuid(nic["subnet"], client)
-            if nic_uuid:
-                subnet_uuid = nic_uuid[0]
-            else:
-                error = "Could not find subnet '{0}'.".format(nic["subnet"])
+    if params['nic_list']:
+        for nic in params['nic_list']:
+            if "subnet_reference" not in nic:
+                error = "Invalid Nic params.".format(nic)
                 return None, error
-
-        nic_list.append({
-            "nic_type": "NORMAL_NIC",
-            "vlan_mode": "ACCESS",
-            "subnet_reference": {
-                "kind": "subnet",
-                "uuid": subnet_uuid
-            },
-            "is_connected": True
-        })
-
-    scsi_counter = 0
-    sata_counter = 0
-    for disk in params['disk_list']:
-        if disk["device_properties"]["disk_address"]["adapter_type"] == "SCSI":
-            counter = scsi_counter
-            scsi_counter += 1
-        elif disk["device_properties"]["disk_address"]["adapter_type"] == "SATA":
-            counter = sata_counter
-            sata_counter += 1
-
-        if (
-            "data_source_reference" not in disk and
-            "size_mib" not in disk and
-            "volume_group_reference" not in disk
-        ):
-            error = "Invalid disk params.".format(disk)
-            return None, error
-
-        if disk["data_source_reference"]:
-            if disk["data_source_reference"]["uuid"]:
-                image_uuid = disk["data_source_reference"]["uuid"]
-            elif disk["data_source_reference"]["name"]:
-                image_name = disk["data_source_reference"]["name"]
-                image_uuids = get_image_uuid(image_name, client)
-                if image_uuids:
-                    image_uuid = image_uuids[0]
+            
+            if nic["subnet_reference"]["uuid"]:
+                nic_uuid = nic["subnet_reference"]["uuid"]
+            elif nic["subnet_reference"]["name"]:
+                nic_name = nic["subnet_reference"]["name"]
+                nic_uuids = get_subnet_uuid(nic_name, client)
+                if nic_uuids:
+                    nic_uuid = nic_uuids[0]
                 else:
-                    error = "Could not find image '{0}'.".format(image_name)
+                    error = "Could not find subnet '{0}'.".format(nic_name)
                     return None, error
             else:
-                error = "Either disk uuid or Name should be passed in disk index '{0}'.".format(counter)
+                error = "Either nic uuid or Name should be passed in nic '{0}'.".format(nic)
+                return None, error
+            
+            nic["subnet_reference"]["uuid"] = nic_uuid
+            nic_payload = set_payload_keys(nic, NIC_PAYLOAD, {})
+            nic_list.append(nic_payload)
+
+    if params['disk_list']:
+        scsi_counter = 0
+        sata_counter = 0
+        for disk in params['disk_list']:
+            if disk["device_properties"]["disk_address"]["adapter_type"] == "SCSI":
+                counter = scsi_counter
+                scsi_counter += 1
+            elif disk["device_properties"]["disk_address"]["adapter_type"] == "SATA":
+                counter = sata_counter
+                sata_counter += 1
+
+            if (
+                "data_source_reference" not in disk and
+                "size_mib" not in disk and
+                "volume_group_reference" not in disk
+            ):
+                error = "Invalid disk params.".format(disk)
                 return None, error
 
-            disk["device_properties"]["disk_address"]["device_index"] = counter
-            disk["data_source_reference"]["kind"] = "image"
-            disk["data_source_reference"]["uuid"] = image_uuid
-        else:
-            disk["device_properties"]["disk_address"]["device_index"] = counter
+            if disk["data_source_reference"]:
+                if disk["data_source_reference"]["uuid"]:
+                    image_uuid = disk["data_source_reference"]["uuid"]
+                elif disk["data_source_reference"]["name"]:
+                    image_name = disk["data_source_reference"]["name"]
+                    image_uuids = get_image_uuid(image_name, client)
+                    if image_uuids:
+                        image_uuid = image_uuids[0]
+                    else:
+                        error = "Could not find image '{0}'.".format(image_name)
+                        return None, error
+                else:
+                    error = "Either disk uuid or Name should be passed in disk index '{0}'.".format(counter)
+                    return None, error
 
-        if disk["storage_config"]:
-            if disk["storage_config"]["storage_container_reference"]:
-                if disk["storage_config"]["storage_container_reference"]["uuid"]:
-                    sc_uuid = disk["storage_config"]["storage_container_reference"]["uuid"]
-                elif disk["storage_config"]["storage_container_reference"]["name"]:
-                    sc_name = disk["storage_config"]["storage_container_reference"]["name"]
-                    cluster_sc_uuid_map = get_cluster_storage_container_map(sc_name, client)
-                    if cluster_sc_uuid_map:
-                        try:
-                            sc_uuid = cluster_sc_uuid_map[cluster_uuid]
-                        except KeyError:
+                disk["device_properties"]["disk_address"]["device_index"] = counter
+                disk["data_source_reference"]["uuid"] = image_uuid
+            else:
+                disk["device_properties"]["disk_address"]["device_index"] = counter
+
+            if disk["storage_config"]:
+                if disk["storage_config"]["storage_container_reference"]:
+                    if disk["storage_config"]["storage_container_reference"]["uuid"]:
+                        sc_uuid = disk["storage_config"]["storage_container_reference"]["uuid"]
+                    elif disk["storage_config"]["storage_container_reference"]["name"]:
+                        sc_name = disk["storage_config"]["storage_container_reference"]["name"]
+                        cluster_sc_uuid_map = get_cluster_storage_container_map(sc_name, client)
+                        if cluster_sc_uuid_map:
+                            try:
+                                sc_uuid = cluster_sc_uuid_map[cluster_uuid]
+                            except KeyError:
+                                error = "Storage container '{0}' provided doesn't exists in the given cluster '{1}'.".format(sc_name, cluster_uuid)
+                                return None, error
+                        else:
                             error = "Storage container '{0}' provided doesn't exists in the given cluster '{1}'.".format(sc_name, cluster_uuid)
                             return None, error
                     else:
-                        error = "Storage container '{0}' provided doesn't exists in the given cluster '{1}'.".format(sc_name, cluster_uuid)
+                        error = "Either storage container uuid or Name should be passed in disk index '{0}'.".format(counter)
                         return None, error
-                else:
-                    error = "Either storage container uuid or Name should be passed in disk index '{0}'.".format(counter)
-                    return None, error
 
-                disk["storage_config"]["storage_container_reference"]["kind"] = "storage_container"
-                disk["storage_config"]["storage_container_reference"]["uuid"] = sc_uuid
+                    disk["storage_config"]["storage_container_reference"]["uuid"] = sc_uuid
 
-        disk_payload = set_payload_keys(disk, DISK_PAYLOAD, {})
+            disk_payload = set_payload_keys(disk, DISK_PAYLOAD, {})
 
-        disk_list.append(disk_payload)
+            disk_list.append(disk_payload)
 
     vm_spec["spec"]["name"] = params['name']
     vm_spec["spec"]["resources"]["num_sockets"] = params['cpu']
     vm_spec["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
     vm_spec["spec"]["resources"]["memory_size_mib"] = params['memory']
-    vm_spec["spec"]["resources"]["power_state"] = "ON"
     vm_spec["spec"]["resources"]["nic_list"] = nic_list
     vm_spec["spec"]["resources"]["disk_list"] = disk_list
+    if params["power_state"]:
+        vm_spec["spec"]["resources"]["power_state"] = params["power_state"]
+    else:
+        vm_spec["spec"]["resources"]["power_state"] = "ON"
 
     if params["guest_customization"]:
         if params["guest_customization"]["cloud_init"]:
@@ -782,6 +876,7 @@ def update_vm_spec(params, vm_data, client):
 def _create(params, client):
 
     vm_uuid = None
+    check_for_ip = False
 
     if params["vm_uuid"]:
         vm_uuid = params["vm_uuid"]
@@ -816,6 +911,10 @@ def _create(params, client):
     if params['dry_run'] is True:
         result["vm_spec"] = vm_spec
         return result
+    
+    if params['power_state']:
+        if params['power_state'] == "ON":
+            check_for_ip=True
 
     # Create VM
     task_uuid, vm_uuid = create_vm(vm_spec, client)
@@ -826,7 +925,7 @@ def _create(params, client):
         result["msg"] = task_status
         return result
 
-    while True:
+    while check_for_ip:
         response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
         json_content = json.loads(response.content)
         if len(json_content["status"]["resources"]["nic_list"]) > 0:
