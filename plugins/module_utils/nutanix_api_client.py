@@ -244,9 +244,64 @@ def get_subnet_uuid(subnet_name, client):
     return subnet_uuid
 
 
+def groups_call(filter, client):
+    sc_list_response = client.request(
+        api_endpoint="v3/groups", method="POST", data=json.dumps(filter))
+    return sc_list_response.json()
+
+
+def get_cluster_storage_container_map(storage_container_name, client):
+    length = 250
+    offset = 0
+    total_matches = 99999
+    cluster_sc_map = {}
+    while offset < total_matches:
+        filter = {
+            "entity_type": "storage_container",
+            "group_member_attributes": [
+                {
+                "attribute": "cluster"
+                },
+                {
+                "attribute": "container_name"
+                }
+            ],
+            "group_member_count": length,
+            "group_member_offset": offset
+        }
+        sc_list = groups_call(filter, client)
+        for sc in sc_list["group_results"][0]["entity_results"]:
+            for attribute in sc["data"]:
+                if attribute["name"] == "container_name":
+                    sc_name = attribute["values"][0]["values"][0]
+                if attribute["name"] == "cluster":
+                    cluster = attribute["values"][0]["values"][0]
+                entity_id = sc["entity_id"]
+
+            if sc_name == storage_container_name:
+                cluster_sc_map[cluster] = entity_id
+
+        total_matches = sc_list["total_entity_count"]
+        offset += length
+
+    return cluster_sc_map
+
+
 def is_uuid(UUID):
     try:
         uuid.UUID(UUID)
         return True
     except ValueError:
         return False
+
+
+def set_payload_keys(params, payload_format, payload):
+    for i in payload_format.keys():
+
+        if params[i] is None:
+            continue
+        elif type(params[i]) is list or type(params[i]) is dict:
+            payload[i] = set_payload_keys(params[i], payload_format[i], {})
+        elif type(params[i]) is str or type(params[i]) is int:
+            payload[i] = params[i]
+    return payload

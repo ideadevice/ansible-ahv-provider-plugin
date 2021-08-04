@@ -241,12 +241,14 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     delete_vm,
     get_subnet_uuid,
     get_image_uuid,
+    get_cluster_storage_container_map,
     is_uuid,
+    set_payload_keys,
     task_poll
 )
 
 
-CREATE_PAYLOAD = {
+VM_PAYLOAD = {
     "metadata": {
         "kind": "vm",
         "spec_version": 0
@@ -267,6 +269,71 @@ CREATE_PAYLOAD = {
             "power_state": "power_state"
         }
     }
+}
+
+DISK_PAYLOAD = {
+    "uuid": "",
+    "storage_config": {
+        "flash_mode": "",
+        "storage_container_reference": {
+            "url": "",
+            "kind": "",
+            "uuid": "",
+            "name": ""
+        }
+    },
+    "device_properties": {
+        "device_type": "",
+        "disk_address": {
+            "device_index": 0,
+            "adapter_type": ""
+        }
+    },
+    "data_source_reference": {
+        "url": "",
+        "kind": "",
+        "uuid": "",
+        "name": ""
+    },
+    "disk_size_mib": 0
+}
+
+NIC_PAYLOAD = {
+    "nic_type": "string",
+    "uuid": "string",
+    "ip_endpoint_list": [
+        {
+            "ip": "string",
+            "type": "string",
+            "gateway_address_list": [
+                "string"
+            ],
+            "prefix_length": 0,
+            "ip_type": "string"
+        }
+    ],
+    "num_queues": 0,
+    "secondary_ip_address_list": [
+        "string"
+    ],
+    "network_function_nic_type": "string",
+    "network_function_chain_reference": {
+        "kind": "network_function_chain",
+        "name": "string",
+        "uuid": "string"
+    },
+    "vlan_mode": "string",
+    "mac_address": "string",
+    "subnet_reference": {
+        "kind": "subnet",
+        "name": "string",
+        "uuid": "string"
+    },
+    "model": "string",
+    "is_connected": True,
+    "trunked_vlan_list": [
+        0
+    ]
 }
 
 
@@ -306,21 +373,79 @@ def main():
             required=True,
             elements='dict',
             options=dict(
-                clone_from_image=dict(
+                uuid=dict(
                     type='str'
                 ),
-                size_mib=dict(
+                disk_size_bytes=dict(
                     type='int'
                 ),
-                device_type=dict(
-                    type='str',
-                    required=True,
-                    choices=["DISK", "CDROM"]
+                disk_size_mib=dict(
+                    type='int'
                 ),
-                adapter_type=dict(
-                    type='str',
-                    required=True,
-                    choices=["SCSI", "PCI", "SATA", "IDE"]
+                storage_config=dict(
+                    type='dict',
+                    options=dict(
+                        flash_mode=dict(
+                            type='str'
+                        ),
+                        storage_container_reference=dict(
+                            type='dict',
+                            options=dict(
+                                uuid=dict(
+                                    type='str'
+                                ),
+                                name=dict(
+                                    type='str'
+                                ),
+                                kind=dict(
+                                    type='str'
+                                ),
+                                url=dict(
+                                    type='str'
+                                )
+                            )
+                        )
+                    )
+                ),
+                device_properties=dict(
+                    type='dict',
+                    options=dict(
+                        device_type=dict(
+                            type='str',
+                            required=True,
+                            choices=["DISK", "CDROM"]
+                        ),
+                        disk_address=dict(
+                            type='dict',
+                            options=dict(
+                                device_index=dict(
+                                    type='int'
+                                ),
+                                adapter_type=dict(
+                                    type='str',
+                                    required=True,
+                                    choices=["SCSI", "PCI", "SATA", "IDE"]
+                                )
+                            )
+                        )
+                    )
+                ),
+                data_source_reference=dict(
+                    type='dict',
+                    options=dict(
+                        uuid=dict(
+                            type='str'
+                        ),
+                        name=dict(
+                            type='str'
+                        ),
+                        kind=dict(
+                            type='str'
+                        ),
+                        url=dict(
+                            type='str'
+                        )
+                    )
                 )
             )
         ),
@@ -393,6 +518,16 @@ def create_vm_spec(params, vm_spec, client):
     nic_list = []
     disk_list = []
 
+    if is_uuid(params['cluster']):
+        cluster_uuid = params['cluster']
+    else:
+        cluster_uuid = get_cluster_uuid(params['cluster'], client)
+        if cluster_uuid:
+            cluster_uuid = cluster_uuid[0]
+        else:
+            error = "Could not find cluster '{0}'.".format(params['cluster'])
+            return None, error
+
     for nic in params['nic_list']:
         if is_uuid(nic["subnet"]):
             subnet_uuid = nic["subnet"]
@@ -417,60 +552,68 @@ def create_vm_spec(params, vm_spec, client):
     scsi_counter = 0
     sata_counter = 0
     for disk in params['disk_list']:
-        if disk["adapter_type"] == "SCSI":
+        if disk["device_properties"]["disk_address"]["adapter_type"] == "SCSI":
             counter = scsi_counter
             scsi_counter += 1
-        elif disk["adapter_type"] == "SATA":
+        elif disk["device_properties"]["disk_address"]["adapter_type"] == "SATA":
             counter = sata_counter
             sata_counter += 1
 
-        if disk["clone_from_image"]:
-            if is_uuid(disk["clone_from_image"]):
-                image_uuid = disk["clone_from_image"]
-            else:
-                image_uuids = get_image_uuid(disk["clone_from_image"], client)
+        if (
+            "data_source_reference" not in disk and
+            "size_mib" not in disk and
+            "volume_group_reference" not in disk
+        ):
+            error = "Invalid disk params.".format(disk)
+            return None, error
+
+        if disk["data_source_reference"]:
+            if disk["data_source_reference"]["uuid"]:
+                image_uuid = disk["data_source_reference"]["uuid"]
+            elif disk["data_source_reference"]["name"]:
+                image_name = disk["data_source_reference"]["name"]
+                image_uuids = get_image_uuid(image_name, client)
                 if image_uuids:
                     image_uuid = image_uuids[0]
                 else:
-                    error = "Could not find image '{0}'.".format(disk["clone_from_image"])
+                    error = "Could not find image '{0}'.".format(image_name)
+                    return None, error
+            else:
+                error = "Either disk uuid or Name should be passed in disk index '{0}'.".format(counter)
+                return None, error
+
+            disk["device_properties"]["disk_address"]["device_index"] = counter
+            disk["data_source_reference"]["kind"] = "image"
+            disk["data_source_reference"]["uuid"] = image_uuid
+        else:
+            disk["device_properties"]["disk_address"]["device_index"] = counter
+
+        if disk["storage_config"]:
+            if disk["storage_config"]["storage_container_reference"]:
+                if disk["storage_config"]["storage_container_reference"]["uuid"]:
+                    sc_uuid = disk["storage_config"]["storage_container_reference"]["uuid"]
+                elif disk["storage_config"]["storage_container_reference"]["name"]:
+                    sc_name = disk["storage_config"]["storage_container_reference"]["name"]
+                    cluster_sc_uuid_map = get_cluster_storage_container_map(sc_name, client)
+                    if cluster_sc_uuid_map:
+                        try:
+                            sc_uuid = cluster_sc_uuid_map[cluster_uuid]
+                        except KeyError:
+                            error = "Storage container '{0}' provided doesn't exists in the given cluster '{1}'.".format(sc_name, cluster_uuid)
+                            return None, error
+                    else:
+                        error = "Storage container '{0}' provided doesn't exists in the given cluster '{1}'.".format(sc_name, cluster_uuid)
+                        return None, error
+                else:
+                    error = "Either storage container uuid or Name should be passed in disk index '{0}'.".format(counter)
                     return None, error
 
-            disk_list.append({
-                "device_properties": {
-                    "disk_address": {
-                        "device_index": counter,
-                        "adapter_type": disk["adapter_type"]
-                    },
-                    "device_type": disk["device_type"]
-                },
-                "disk_size_mib": disk["size_mib"],
-                "data_source_reference": {
-                    "kind": "image",
-                    "uuid": image_uuid
-                }
-            })
-        else:
-            if disk["device_type"] == "CDROM":
-                disk_list.append({
-                    "device_properties": {
-                        "disk_address": {
-                            "device_index": counter,
-                            "adapter_type": disk["adapter_type"]
-                        },
-                        "device_type": disk["device_type"]
-                    }
-                })
-            else:
-                disk_list.append({
-                    "device_properties": {
-                        "disk_address": {
-                            "device_index": counter,
-                            "adapter_type": disk["adapter_type"]
-                        },
-                        "device_type": disk["device_type"]
-                    },
-                    "disk_size_mib": disk["size_mib"]
-                })
+                disk["storage_config"]["storage_container_reference"]["kind"] = "storage_container"
+                disk["storage_config"]["storage_container_reference"]["uuid"] = sc_uuid
+
+        disk_payload = set_payload_keys(disk, DISK_PAYLOAD, {})
+
+        disk_list.append(disk_payload)
 
     vm_spec["spec"]["name"] = params['name']
     vm_spec["spec"]["resources"]["num_sockets"] = params['cpu']
@@ -501,16 +644,6 @@ def create_vm_spec(params, vm_spec, client):
                     "unattend_xml": sysprep_init_encoded.decode('ascii')
                 }
             }
-
-    if is_uuid(params['cluster']):
-        cluster_uuid = params['cluster']
-    else:
-        cluster_uuid = get_cluster_uuid(params['cluster'], client)
-        if cluster_uuid:
-            cluster_uuid = cluster_uuid[0]
-        else:
-            error = "Could not find cluster '{0}'.".format(params['cluster'])
-            return None, error
 
     vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": cluster_uuid}
 
@@ -673,7 +806,7 @@ def _create(params, client):
         return _update(params, client, vm_uuid=vm_uuid)
 
     # Create VM Spec
-    vm_spec = CREATE_PAYLOAD
+    vm_spec = VM_PAYLOAD
     vm_spec, error = create_vm_spec(params, vm_spec, client)
     if error:
         result["failed"] = True
