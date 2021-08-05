@@ -138,6 +138,12 @@ def delete_vm(vm_uuid, client):
     return response.json()["status"]["execution_context"]["task_uuid"]
 
 
+def power_cycle_vm(vm_uuid, client):
+    data={}
+    response = client.request(
+        api_endpoint="v3/vms/{0}/power_cycle".format(vm_uuid), method="POST", data=json.dumps(data))
+    return response.json()["task_uuid"]
+
 def get_image_uuid(image_name, client):
     length = 250
     offset = 0
@@ -291,3 +297,23 @@ def set_payload_keys(params, payload_format, payload):
         elif type(params[i]) is str or type(params[i]) is int:
             payload[i] = params[i]
     return payload
+
+
+def has_changed(source_payload, destination_payload):
+    status = False
+    for key in source_payload.keys():
+        if type(source_payload[key]) is dict:
+            status = has_changed(source_payload[key], destination_payload[key])
+        elif type(source_payload[key]) is list:
+            for i, item in enumerate(source_payload[key]):
+                try:
+                    status = has_changed(item, destination_payload[key][i])
+                except IndexError:
+                    status = True
+        elif type(source_payload[key]) is str or type(source_payload[key]) is int:
+            if source_payload[key] != destination_payload[key]:
+                return True
+
+        if status:
+            return status
+    return status

@@ -239,12 +239,14 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     create_vm,
     update_vm,
     delete_vm,
+    power_cycle_vm,
     get_subnet_uuid,
     get_image_uuid,
     get_cluster_storage_container_map,
     is_uuid,
     set_payload_keys,
-    task_poll
+    task_poll,
+    has_changed
 )
 
 
@@ -525,7 +527,7 @@ def main():
                         ),
                         uuid=dict(
                             type='str'
-                        ) 
+                        )
                     )
                 ),
                 subnet_reference=dict(
@@ -541,7 +543,7 @@ def main():
                         ),
                         uuid=dict(
                             type='str'
-                        ) 
+                        )
                     )
                 ),
                 trunked_vlan_list=dict(
@@ -609,7 +611,9 @@ def create_vm_spec(params, vm_spec, client):
 
     if is_uuid(params['cluster']):
         cluster_uuid = params['cluster']
+        cluster_name = None
     else:
+        cluster_name = params['cluster']
         cluster_uuid = get_cluster_uuid(params['cluster'], client)
         if cluster_uuid:
             cluster_uuid = cluster_uuid[0]
@@ -622,7 +626,7 @@ def create_vm_spec(params, vm_spec, client):
             if "subnet_reference" not in nic:
                 error = "Invalid Nic params.".format(nic)
                 return None, error
-            
+
             if nic["subnet_reference"]["uuid"]:
                 nic_uuid = nic["subnet_reference"]["uuid"]
             elif nic["subnet_reference"]["name"]:
@@ -636,7 +640,7 @@ def create_vm_spec(params, vm_spec, client):
             else:
                 error = "Either nic uuid or Name should be passed in nic '{0}'.".format(nic)
                 return None, error
-            
+
             nic["subnet_reference"]["uuid"] = nic_uuid
             nic_payload = set_payload_keys(nic, NIC_PAYLOAD, {})
             nic_list.append(nic_payload)
@@ -645,6 +649,7 @@ def create_vm_spec(params, vm_spec, client):
         scsi_counter = 0
         sata_counter = 0
         for disk in params['disk_list']:
+            image_name = None
             if disk["device_properties"]["disk_address"]["adapter_type"] == "SCSI":
                 counter = scsi_counter
                 scsi_counter += 1
@@ -704,6 +709,9 @@ def create_vm_spec(params, vm_spec, client):
 
             disk_payload = set_payload_keys(disk, DISK_PAYLOAD, {})
 
+            if image_name:
+                    del disk_payload["data_source_reference"]["name"]
+
             disk_list.append(disk_payload)
 
     vm_spec["spec"]["name"] = params['name']
@@ -712,6 +720,10 @@ def create_vm_spec(params, vm_spec, client):
     vm_spec["spec"]["resources"]["memory_size_mib"] = params['memory']
     vm_spec["spec"]["resources"]["nic_list"] = nic_list
     vm_spec["spec"]["resources"]["disk_list"] = disk_list
+    vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": cluster_uuid}
+    if cluster_name:
+        vm_spec["spec"]["cluster_reference"]["name"] = cluster_name
+
     if params["power_state"]:
         vm_spec["spec"]["resources"]["power_state"] = params["power_state"]
     else:
@@ -739,138 +751,76 @@ def create_vm_spec(params, vm_spec, client):
                 }
             }
 
-    vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": cluster_uuid}
-
     return vm_spec, None
 
 
-def update_vm_spec(params, vm_data, client):
+def update_vm_spec(params, current_vm_payload, client):
 
-    nic_list = []
-    disk_list = []
-    guest_customization_cdrom = None
-    vm_spec = vm_data["spec"]
-    spec_nic_list = vm_spec["resources"]["nic_list"]
-    spec_disk_list = vm_spec["resources"]["disk_list"]
+    # Create VM Spec
+    new_vm_payload, error = create_vm_spec(params, VM_PAYLOAD, client)
+    if error:
+        return new_vm_payload, error
+    
+    new_vm_spec = new_vm_payload["spec"]
+    current_vm_spec = current_vm_payload["spec"]
 
-    param_disk_list = params['disk_list']
-    param_nic_list = params['nic_list']
+    has_changed_status = has_changed(new_vm_spec, current_vm_spec)
 
-    if params["guest_customization"]:
-        if (
-            params["guest_customization"]["cloud_init"] or
-            params["guest_customization"]["sysprep"]
-        ):
-            guest_customization_cdrom = spec_disk_list.pop()
+    new_vm_spec_disk_length = len(new_vm_spec["resources"]["disk_list"])
+    current_vm_spec_disk_length = len(current_vm_spec["resources"]["disk_list"])
 
-    scsi_counter = 0
-    sata_counter = 0
-    for i, disk in enumerate(param_disk_list):
-        if disk["adapter_type"] == "SCSI":
-            counter = scsi_counter
-            scsi_counter += 1
-        elif disk["adapter_type"] == "SATA":
-            counter = sata_counter
-            sata_counter += 1
+    new_vm_disk_list = new_vm_spec["resources"]["disk_list"]
+    current_vm_disk_list = current_vm_spec["resources"]["disk_list"]
 
-        if disk["clone_from_image"]:
+    if current_vm_spec["resources"]["guest_customization"]:
+        current_vm_spec_disk_length = (current_vm_spec_disk_length-1)
 
-            if is_uuid(disk["clone_from_image"]):
-                image_uuid = disk["clone_from_image"]
-            else:
-                image_uuids = get_image_uuid(disk["clone_from_image"], client)
-                if image_uuids:
-                    image_uuid = image_uuids[0]
-                else:
-                    error = "Could not find image '{0}'.".format(disk["clone_from_image"])
-                    return None, error
-            try:
-                spec_disk = spec_disk_list[i]
-                disk_list.append(spec_disk)
-            except IndexError:
-                disk_list.append({
-                    "device_properties": {
-                        "disk_address": {
-                            "device_index": counter,
-                            "adapter_type": disk["adapter_type"]
-                        },
-                        "device_type": disk["device_type"]
-                    },
-                    "disk_size_mib": disk["size_mib"],
-                    "data_source_reference": {
-                        "kind": "image",
-                        "uuid": image_uuid
-                    }
-                })
-        else:
-            try:
-                spec_disk = spec_disk_list[i]
-                if disk["device_type"] == "CDROM":
-                    disk_list.append(spec_disk)
-                else:
-                    if spec_disk["disk_size_mib"] != disk["size_mib"]:
-                        spec_disk["disk_size_mib"] = disk["size_mib"]
-                    disk_list.append(spec_disk)
-            except IndexError:
-                if disk["device_type"] == "CDROM":
-                    disk_list.append({
-                        "device_properties": {
-                            "disk_address": {
-                                "device_index": counter,
-                                "adapter_type": disk["adapter_type"]
-                            },
-                            "device_type": disk["device_type"]
-                        }
-                    })
-                else:
-                    disk_list.append({
-                        "device_properties": {
-                            "disk_address": {
-                                "device_index": counter,
-                                "adapter_type": disk["adapter_type"]
-                            },
-                            "device_type": disk["device_type"]
-                        },
-                        "disk_size_mib": disk["size_mib"]
-                    })
+    if new_vm_spec_disk_length != current_vm_spec_disk_length:
+        has_changed_status = True
+        if new_vm_spec_disk_length > current_vm_spec_disk_length:
+            diff_length = new_vm_spec_disk_length - current_vm_spec_disk_length
+            diff_disk_list = new_vm_disk_list[-diff_length:]
+            for disk in diff_disk_list:
+                current_vm_disk_list.append(disk)
+        elif new_vm_spec_disk_length < current_vm_spec_disk_length:
+            if current_vm_spec["resources"]["guest_customization"]:
+                new_vm_spec_disk_length = (new_vm_spec_disk_length+1)
+            current_vm_disk_list = current_vm_disk_list[:new_vm_spec_disk_length]
 
-    if guest_customization_cdrom:
-        disk_list.append(guest_customization_cdrom)
+    new_vm_spec_nic_length = len(new_vm_spec["resources"]["nic_list"])
+    current_vm_spec_nic_length = len(current_vm_spec["resources"]["nic_list"])
 
-    for i, nic in enumerate(param_nic_list):
-        for nic in params['nic_list']:
-            if is_uuid(nic["subnet"]):
-                subnet_uuid = nic["subnet"]
-            else:
-                nic_uuid = get_subnet_uuid(nic["subnet"], client)
-                if nic_uuid:
-                    subnet_uuid = nic_uuid[0]
-                else:
-                    error = "Could not find subnet '{0}'.".format(nic["subnet"])
-                    return None, error
-        try:
-            spec_nic = spec_nic_list[i]
-            nic_list.append(spec_nic)
-        except IndexError:
-            nic_list.append({
-                "nic_type": "NORMAL_NIC",
-                "vlan_mode": "ACCESS",
-                "subnet_reference": {
-                    "kind": "subnet",
-                    "uuid": subnet_uuid
-                },
-                "is_connected": True
-            })
+    new_vm_nic_list = new_vm_spec["resources"]["nic_list"]
+    current_vm_nic_list = current_vm_spec["resources"]["nic_list"]
 
-    vm_data["spec"]["resources"]["num_sockets"] = params['cpu']
-    vm_data["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
-    vm_data["spec"]["resources"]["memory_size_mib"] = params['memory']
-    vm_data["spec"]["resources"]["power_state"] = "ON"
-    vm_data["spec"]["resources"]["nic_list"] = nic_list
-    vm_data["spec"]["resources"]["disk_list"] = disk_list
-    vm_data["metadata"]["spec_version"] += 1
+    if new_vm_spec_nic_length != current_vm_spec_nic_length:
+        has_changed_status = True
+        if new_vm_spec_nic_length > current_vm_spec_nic_length:
+            diff_length = new_vm_spec_nic_length - current_vm_spec_nic_length
+            diff_nic_list = new_vm_nic_list[-diff_length:]
+            for nic in diff_nic_list:
+                current_vm_nic_list.append(nic)
+        elif new_vm_spec_nic_length < current_vm_spec_nic_length:
+            current_vm_nic_list = current_vm_nic_list[:new_vm_spec_nic_length]
 
-    return vm_data
+    updated_vm_payload = current_vm_payload
+    
+    if not has_changed_status:
+        return has_changed_status, None
+
+    updated_vm_payload["spec"]["name"] = params['name']
+    updated_vm_payload["spec"]["resources"]["num_sockets"] = params['cpu']
+    updated_vm_payload["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
+    updated_vm_payload["spec"]["resources"]["memory_size_mib"] = params['memory']
+
+    updated_vm_payload["spec"]["resources"]["nic_list"] = current_vm_nic_list
+    updated_vm_payload["spec"]["resources"]["disk_list"] = current_vm_disk_list
+    updated_vm_payload["metadata"]["spec_version"] += 1
+
+    if params["power_state"]:
+        updated_vm_payload["spec"]["resources"]["power_state"] = params["power_state"]
+
+    return updated_vm_payload, None
 
 
 def _create(params, client):
@@ -901,23 +851,22 @@ def _create(params, client):
         return _update(params, client, vm_uuid=vm_uuid)
 
     # Create VM Spec
-    vm_spec = VM_PAYLOAD
-    vm_spec, error = create_vm_spec(params, vm_spec, client)
+    vm_payload, error = create_vm_spec(params, VM_PAYLOAD, client)
     if error:
         result["failed"] = True
         result["msg"] = error
         return result
 
     if params['dry_run'] is True:
-        result["vm_spec"] = vm_spec
+        result["vm_spec"] = vm_payload
         return result
-    
+
     if params['power_state']:
         if params['power_state'] == "ON":
             check_for_ip=True
 
     # Create VM
-    task_uuid, vm_uuid = create_vm(vm_spec, client)
+    task_uuid, vm_uuid = create_vm(vm_payload, client)
 
     task_status = task_poll(task_uuid, client)
     if task_status:
@@ -956,45 +905,66 @@ def _update(params, client, vm_uuid=None):
     if not vm_uuid:
         vm_uuid = get_vm_uuid(params, client)[0]
 
-    vm_json = get_vm(vm_uuid, client)
+    current_vm_payload = get_vm(vm_uuid, client)
+
+    current_vm_disk_list_length = len(current_vm_payload["spec"]["resources"]["disk_list"])
+    if "guest_customization" in current_vm_payload["spec"]["resources"]:
+        current_vm_disk_list_length=(current_vm_disk_list_length-1)
+
+    new_vm_disk_list_length = len(params["disk_list"])
+
 
     if (
-        params['cpu'] < vm_json["status"]["resources"]["num_sockets"]  or
-        params['vcpu'] < vm_json["status"]["resources"]["num_vcpus_per_socket"] or
-        params['memory'] < vm_json["status"]["resources"]["memory_size_mib"]
+        params['cpu'] < current_vm_payload["status"]["resources"]["num_sockets"]  or
+        params['vcpu'] < current_vm_payload["status"]["resources"]["num_vcpus_per_socket"] or
+        params['memory'] < current_vm_payload["status"]["resources"]["memory_size_mib"] or
+        len(params['nic_list']) < len(current_vm_payload["status"]["resources"]["nic_list"]) or
+        new_vm_disk_list_length < current_vm_disk_list_length
     ):
-        need_restart = True
+        if current_vm_payload["status"]["resources"]["power_state"] == "ON":
+            need_restart = True
+
+    if "status" in current_vm_payload:
+        del current_vm_payload["status"]
+
+    #Update VM spec
+    updated_vm_payload, error = update_vm_spec(params, current_vm_payload, client)
+    if error:
+        result["failed"] = True
+        result["msg"] = error
+        return result
+
+    if not updated_vm_payload:
+        result["msg"] = "VM is in same state."
+        return result
+
+    result["updated_vm_spec"] = updated_vm_payload
+
+    if params['dry_run'] is True:
+        return result
 
     # Poweroff the VM
     if need_restart:
 
-        del vm_json["status"]
-        vm_json["spec"]["resources"]["power_state"] = "OFF"
-        vm_json["metadata"]["spec_version"] += 1
+        vm_payload = get_vm(vm_uuid, client)
+        if "status" in vm_payload:
+            del vm_payload["status"]
+        vm_payload["spec"]["resources"]["power_state"] = "OFF"
+        vm_payload["metadata"]["spec_version"] += 1
 
-        task_uuid = update_vm(vm_uuid, vm_json, client)
-
+        task_uuid = update_vm(vm_uuid, vm_payload, client)
         task_status = task_poll(task_uuid, client)
         if task_status:
             result["failed"] = True
             result["msg"] = task_status
             return result
-
-        vm_json["metadata"]["entity_version"] = "%d" % (
-            int(vm_json["metadata"]["entity_version"]) + 1
+        
+        updated_vm_payload["metadata"]["entity_version"] = "%d" % (
+            int(updated_vm_payload["metadata"]["entity_version"]) + 1
         )
-
-    # Update the VM
-    if "status" in vm_json:
-        del vm_json["status"]
-    updated_vm_spec = update_vm_spec(params, vm_json, client)
-    updated_vm_spec["spec"]["resources"]["power_state"] = "ON"
-    result["updated_vm_spec"] = updated_vm_spec
-
-    if params['dry_run'] is True:
-        return result
-
-    task_uuid = update_vm(vm_uuid, updated_vm_spec, client)
+    
+    #return result
+    task_uuid = update_vm(vm_uuid, updated_vm_payload, client)
     result["task_uuid"] = task_uuid
 
     task_status = task_poll(task_uuid, client)
