@@ -112,7 +112,7 @@ from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
-    list_vms
+    list_entities
 )
 
 
@@ -199,7 +199,7 @@ def get_vm_list():
 
     while offset < total_matches:
         data["offset"] = offset
-        vms_list = list_vms(data, client)
+        vms_list = list_entities('vms', data, client)
         for entity in vms_list["entities"]:
             spec_list.append(entity["spec"])
             status_list.append(entity["status"])

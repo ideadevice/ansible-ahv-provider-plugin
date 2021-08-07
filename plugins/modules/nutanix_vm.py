@@ -21,17 +21,17 @@ description: Create, Update, Delete, Power-on, Power-off Nutanix VM's
 options:
     pc_hostname:
         description:
-        - PC hostname or IP address
+        - PC hostname or IP address; export PC_HOSTNAME=<PC_IP>
         type: str
         required: True
     pc_username:
         description:
-        - PC username
+        - PC username; export PC_USERNAME=<PC_USERNAME>
         type: str
         required: True
     pc_password:
         description:
-        - PC password
+        - PC password; export PC_PASSWORD=<PC_PASSWORD>
         required: True
         type: str
     pc_port:
@@ -87,9 +87,21 @@ options:
         required: True
     cluster:
         description:
-        - PE Cluster uuid/name where you want to place the VM.
+        - PE Cluster uuid or name where you want to place the VM.
         type: str
         required: True
+    power_state:
+        description:
+        - VM power state
+        - Note please send "ON" or "OFF" with quotes.
+        - 'Accepted value for this field:'
+        - '    - C(ON)'
+        - '    - C(OFF)'
+        choices:
+        - "ON"
+        - "OFF"
+        type: str
+        default: "ON"
     dry_run:
         description:
         - Set value to C(True) to skip vm creation and print the spec for verification.
@@ -100,54 +112,250 @@ options:
         - Virtual Machine Disk list
         type: list
         elements: dict
-        suboptions:
-            clone_from_image:
-                description:
-                - Name/UUID of the image
-                type: str
-            size_mib:
-                description:
-                - Disk Size
-                type: int
-            device_type:
-                description:
-                - Disk Device type
-                - 'Accepted value for this field:'
-                - '    - C(DISK)'
-                - '    - C(CDROM)'
-                choices:
-                - DISK
-                - CDROM
-                type: str
-                required: True
-            adapter_type:
-                description:
-                - Disk Adapter type
-                - 'Accepted value for this field:'
-                - '    - C(SCSI)'
-                - '    - C(PCI)'
-                - '    - C(SATA)'
-                - '    - C(IDE)'
-                choices:
-                - SCSI
-                - PCI
-                - SATA
-                - IDE
-                type: str
-                required: True
         required: True
+        suboptions:
+            uuid:
+                description:
+                - 'Disk uuid (Computed)'
+                type: str
+            disk_size_bytes:
+                description:
+                - 'Disk Size in bytes (Computed)'
+                type: int
+            disk_size_mib:
+                description:
+                - 'Disk Size Mib (Optional)'
+                type: int
+            storage_config:
+                description:
+                - Disk storage configuration
+                type: dict
+                suboptions:
+                    flash_mode:
+                        description:
+                        - Flash mode
+                        type: str
+                    storage_container_reference:
+                        description:
+                        - Storage container reference configuration
+                        type: dict
+                        suboptions:
+                            uuid:
+                                description:
+                                - Storage container uuid
+                                type: str
+                            name:
+                                description:
+                                - Storage container name
+                                type: str
+                            kind:
+                                description:
+                                - Storage container kind
+                                type: str
+                                default: storage_container
+                            url:
+                                description:
+                                - Storage container url
+                                type: str
+            device_properties:
+                description:
+                - Disk device properties
+                type: dict
+                suboptions:
+                    device_type:
+                        description:
+                        - Device type
+                        - 'Accepted value for this field:'
+                        - '    - C(DISK)'
+                        - '    - C(CDROM)'
+                        type: str
+                        choices:
+                        - DISK
+                        - CDROM
+                        required: True
+                    disk_address:
+                        description:
+                        - Disk device address
+                        type: dict
+                        suboptions:
+                            device_index:
+                                description:
+                                - Disk device index
+                                type: int
+                            adapter_type:
+                                description:
+                                - Adapter type
+                                - 'Accepted value for this field:'
+                                - '    - C(SCSI)'
+                                - '    - C(PCI)'
+                                - '    - C(SATA)'
+                                - '    - C(IDE)'
+                                type: str
+                                choices:
+                                - SCSI
+                                - PCI
+                                - SATA
+                                - IDE
+                                required: True
+            data_source_reference:
+                description:
+                - Data source reference
+                type: dict
+                suboptions:
+                    uuid:
+                        description:
+                        - Data source uuid
+                        type: str
+                    name:
+                        description:
+                        - Data source Name
+                        type: str
+                    kind:
+                        description:
+                        - Data source kind
+                        type: str
+                        default: image
+                    url:
+                        description:
+                        - Data source url
+                        type: str
     nic_list:
         description:
         - Virtual Machine Nic list
         type: list
         elements: dict
-        suboptions:
-            subnet:
-                description:
-                - Subnet UUID or Name
-                type: str
-                required: True
         required: True
+        suboptions:
+            uuid:
+                description:
+                - Disk uuid (Computed)
+                type: str
+            nic_type:
+                description:
+                - Nic Type
+                - 'Accepted value for this field:'
+                - '    - C(NORMAL_NIC)'
+                type: str
+                default: NORMAL_NIC
+                choices:
+                - NORMAL_NIC
+            num_queues:
+                description:
+                - Number of queues
+                type: int
+            network_function_nic_type:
+                description:
+                - Network function nic type
+                type: str
+            vlan_mode:
+                description:
+                - Network function nic type
+                - 'Accepted value for this field:'
+                - '    - C(ACCESS)'
+                type: str
+                default: ACCESS
+                choices:
+                - ACCESS
+            mac_address:
+                description:
+                - Mac address
+                type: str
+            model:
+                description:
+                - Nic Model
+                type: str
+            is_connected:
+                description:
+                - Is Connected
+                type: bool
+                default: True
+            ip_endpoint_list:
+                description:
+                - Ip Endpoint list
+                type: list
+                elements: dict
+                suboptions:
+                    ip:
+                        description:
+                        - IP Address
+                        type: str
+                    type:
+                        description:
+                        - Assignment type
+                        - 'Accepted value for this field:'
+                        - '    - C(ASSIGNED)'
+                        - '    - C(LEARNED)'
+                        type: str
+                        default: ASSIGNED
+                        choices:
+                        - ASSIGNED
+                        - LEARNED
+                    prefix_length:
+                        description:
+                        - Prefix length
+                        type: int
+                    ip_type:
+                        description:
+                        - IP Type
+                        - 'Accepted value for this field:'
+                        - '    - C(STATIC)'
+                        - '    - C(DHCP)'
+                        type: str
+                        choices:
+                        - STATIC
+                        - DHCP
+                    gateway_address_list:
+                        description:
+                        - Gateway Address
+                        type: list
+                        elements: str
+            secondary_ip_address_list:
+                description:
+                - Secondary IP address list
+                type: list
+                elements: str
+            network_function_chain_reference:
+                description:
+                - Network Function chain reference
+                type: dict
+                suboptions:
+                    name:
+                        description:
+                        - Network Function chain Name
+                        type: str
+                    kind:
+                        description:
+                        - Network Function chain kind
+                        type: str
+                        default: network_function_chain
+                    uuid:
+                        description:
+                        - Network Function chain uuid
+                        type: str
+            subnet_reference:
+                description:
+                - Subnet Reference
+                type: dict
+                required: True
+                suboptions:
+                    name:
+                        description:
+                        - Subnet Reference Name
+                        type: str
+                    kind:
+                        description:
+                        - Subnet Reference kind
+                        type: str
+                        default: subnet
+                    uuid:
+                        description:
+                        - Subnet Reference uuid
+                        type: str
+            trunked_vlan_list:
+                description:
+                - Trunked vlan
+                type: list
+                elements: str
     guest_customization:
         description:
         - Virtual Machine Guest Customization
@@ -190,36 +398,38 @@ EXAMPLES = r'''
     pc_username: "{{ pc_username }}"
     pc_password: "{{ pc_password }}"
     pc_port: 9440
-    validate_certs: False
+    state: present
     name: "vm-0001"
-    cpu: 2
+    cpu: 4
     vcpu: 2
-    memory: 2048
-    cluster: "{{ cluster name or uuid }}"
+    memory: 4096
+    cluster: "{{ cluster uuid or name }}"
     disk_list:
-    - device_type: DISK
-      clone_from_image: "{{ image name or uuid }}"
-      adapter_type: SCSI
-    - device_type: DISK
-      adapter_type: SCSI
-      size_mib: 10240
+    - device_properties:
+        device_type: DISK
+        disk_address:
+          adapter_type: SCSI
+      data_source_reference:
+        name: "{{ image_name }}"
+    - device_properties:
+        device_type: DISK
+        disk_address:
+          adapter_type: SCSI
+      disk_size_mib: 20480
+      storage_config:
+        storage_container_reference:
+          name: "{{ datastore_name }}"
     nic_list:
-    - subnet: "{{ subnet name or uuid }}"
-    guest_customization:
-      cloud_init: |-
-          #cloud-config
-          users:
-            - name: centos
-              sudo: ['ALL=(ALL) NOPASSWD:ALL']
-          chpasswd:
-            list: |
-              centos:nutanix/4u
-            expire: False
-          ssh_pwauth: true
+    - subnet_reference:
+        name: vlan.0
+    - subnet_reference:
+        name: vlan.889
+    ip_endpoint_list:
+        - ip: 10.0.0.1
   delegate_to: localhost
-  register: vm
+  register: create_vm
 - debug:
-      msg: "{{ vm }}"
+    msg: "{{ create_vm }}"
 '''
 
 
@@ -239,7 +449,6 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     create_vm,
     update_vm,
     delete_vm,
-    power_cycle_vm,
     get_subnet_uuid,
     get_image_uuid,
     get_cluster_storage_container_map,
@@ -508,12 +717,14 @@ def main():
                             choices=["STATIC", "DHCP"]
                         ),
                         gateway_address_list=dict(
-                            type='list'
+                            type='list',
+                            elements='str'
                         )
                     )
                 ),
                 secondary_ip_address_list=dict(
-                    type='list'
+                    type='list',
+                    elements='str'
                 ),
                 network_function_chain_reference=dict(
                     type='dict',
@@ -547,7 +758,8 @@ def main():
                     )
                 ),
                 trunked_vlan_list=dict(
-                    type='list'
+                    type='list',
+                    elements='str'
                 ),
             )
         ),
@@ -624,7 +836,7 @@ def create_vm_spec(params, vm_spec, client):
     if params['nic_list']:
         for nic in params['nic_list']:
             if "subnet_reference" not in nic:
-                error = "Invalid Nic params.".format(nic)
+                error = "Invalid Nic params {0}.".format(nic)
                 return None, error
 
             if nic["subnet_reference"]["uuid"]:
@@ -662,7 +874,7 @@ def create_vm_spec(params, vm_spec, client):
                 "size_mib" not in disk and
                 "volume_group_reference" not in disk
             ):
-                error = "Invalid disk params.".format(disk)
+                error = "Invalid disk params {0}.".format(disk)
                 return None, error
 
             if disk["data_source_reference"]:
@@ -710,7 +922,7 @@ def create_vm_spec(params, vm_spec, client):
             disk_payload = set_payload_keys(disk, DISK_PAYLOAD, {})
 
             if image_name:
-                    del disk_payload["data_source_reference"]["name"]
+                del disk_payload["data_source_reference"]["name"]
 
             disk_list.append(disk_payload)
 
@@ -760,7 +972,7 @@ def update_vm_spec(params, current_vm_payload, client):
     new_vm_payload, error = create_vm_spec(params, VM_PAYLOAD, client)
     if error:
         return new_vm_payload, error
-    
+
     new_vm_spec = new_vm_payload["spec"]
     current_vm_spec = current_vm_payload["spec"]
 
@@ -772,8 +984,8 @@ def update_vm_spec(params, current_vm_payload, client):
     new_vm_disk_list = new_vm_spec["resources"]["disk_list"]
     current_vm_disk_list = current_vm_spec["resources"]["disk_list"]
 
-    if current_vm_spec["resources"]["guest_customization"]:
-        current_vm_spec_disk_length = (current_vm_spec_disk_length-1)
+    if "guest_customization" in current_vm_spec["resources"]:
+        current_vm_spec_disk_length = (current_vm_spec_disk_length - 1)
 
     if new_vm_spec_disk_length != current_vm_spec_disk_length:
         has_changed_status = True
@@ -784,8 +996,14 @@ def update_vm_spec(params, current_vm_payload, client):
                 current_vm_disk_list.append(disk)
         elif new_vm_spec_disk_length < current_vm_spec_disk_length:
             if current_vm_spec["resources"]["guest_customization"]:
-                new_vm_spec_disk_length = (new_vm_spec_disk_length+1)
+                new_vm_spec_disk_length = (new_vm_spec_disk_length + 1)
             current_vm_disk_list = current_vm_disk_list[:new_vm_spec_disk_length]
+
+    if has_changed_status:
+        for i, disk in enumerate(current_vm_disk_list):
+            if disk["device_properties"]["device_type"] == "DISK":
+                if disk["disk_size_mib"] < new_vm_disk_list[i]["disk_size_mib"]:
+                    disk["disk_size_mib"] = new_vm_disk_list[i]["disk_size_mib"]
 
     new_vm_spec_nic_length = len(new_vm_spec["resources"]["nic_list"])
     current_vm_spec_nic_length = len(current_vm_spec["resources"]["nic_list"])
@@ -804,7 +1022,7 @@ def update_vm_spec(params, current_vm_payload, client):
             current_vm_nic_list = current_vm_nic_list[:new_vm_spec_nic_length]
 
     updated_vm_payload = current_vm_payload
-    
+
     if not has_changed_status:
         return has_changed_status, None
 
@@ -863,7 +1081,7 @@ def _create(params, client):
 
     if params['power_state']:
         if params['power_state'] == "ON":
-            check_for_ip=True
+            check_for_ip = True
 
     # Create VM
     task_uuid, vm_uuid = create_vm(vm_payload, client)
@@ -909,13 +1127,12 @@ def _update(params, client, vm_uuid=None):
 
     current_vm_disk_list_length = len(current_vm_payload["spec"]["resources"]["disk_list"])
     if "guest_customization" in current_vm_payload["spec"]["resources"]:
-        current_vm_disk_list_length=(current_vm_disk_list_length-1)
+        current_vm_disk_list_length = (current_vm_disk_list_length - 1)
 
     new_vm_disk_list_length = len(params["disk_list"])
 
-
     if (
-        params['cpu'] < current_vm_payload["status"]["resources"]["num_sockets"]  or
+        params['cpu'] < current_vm_payload["status"]["resources"]["num_sockets"] or
         params['vcpu'] < current_vm_payload["status"]["resources"]["num_vcpus_per_socket"] or
         params['memory'] < current_vm_payload["status"]["resources"]["memory_size_mib"] or
         len(params['nic_list']) < len(current_vm_payload["status"]["resources"]["nic_list"]) or
@@ -927,7 +1144,7 @@ def _update(params, client, vm_uuid=None):
     if "status" in current_vm_payload:
         del current_vm_payload["status"]
 
-    #Update VM spec
+    # Update VM spec
     updated_vm_payload, error = update_vm_spec(params, current_vm_payload, client)
     if error:
         result["failed"] = True
@@ -958,12 +1175,11 @@ def _update(params, client, vm_uuid=None):
             result["failed"] = True
             result["msg"] = task_status
             return result
-        
+
         updated_vm_payload["metadata"]["entity_version"] = "%d" % (
             int(updated_vm_payload["metadata"]["entity_version"]) + 1
         )
-    
-    #return result
+
     task_uuid = update_vm(vm_uuid, updated_vm_payload, client)
     result["task_uuid"] = task_uuid
 

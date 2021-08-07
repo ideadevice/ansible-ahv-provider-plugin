@@ -98,7 +98,7 @@ RETURN = r"""
 """
 
 from ansible.module_utils.basic import AnsibleModule, env_fallback
-from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, list_images
+from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import NutanixApiClient, list_entities
 
 
 def set_list_payload(data):
@@ -157,7 +157,7 @@ def get_image_list():
     image_name = module.params.get("image_name")
     spec_list, status_list, image_list, meta_list = [], [], [], []
     data = set_list_payload(module.params['data'])
-    image_list_data = list_images(data, client)
+    image_list_data = list_entities('images', data, client)
 
     for entity in image_list_data["entities"]:
         # Identify image list operation from image spec request

@@ -138,12 +138,6 @@ def delete_vm(vm_uuid, client):
     return response.json()["status"]["execution_context"]["task_uuid"]
 
 
-def power_cycle_vm(vm_uuid, client):
-    data={}
-    response = client.request(
-        api_endpoint="v3/vms/{0}/power_cycle".format(vm_uuid), method="POST", data=json.dumps(data))
-    return response.json()["task_uuid"]
-
 def get_image_uuid(image_name, client):
     length = 250
     offset = 0
@@ -248,10 +242,10 @@ def get_cluster_storage_container_map(storage_container_name, client):
             "entity_type": "storage_container",
             "group_member_attributes": [
                 {
-                "attribute": "cluster"
+                    "attribute": "cluster"
                 },
                 {
-                "attribute": "container_name"
+                    "attribute": "container_name"
                 }
             ],
             "group_member_count": length,
@@ -291,7 +285,7 @@ def set_payload_keys(params, payload_format, payload):
         elif type(params[i]) is dict:
             payload[i] = set_payload_keys(params[i], payload_format[i], {})
         elif type(params[i]) is list:
-            payload[i]=[]
+            payload[i] = []
             for item in params[i]:
                 payload[i].append(set_payload_keys(item, payload_format[i][0], {}))
         elif type(params[i]) is str or type(params[i]) is int:
