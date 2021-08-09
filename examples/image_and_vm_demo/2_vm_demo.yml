@@ -1,0 +1,77 @@
+---
+- hosts: localhost
+  collections:
+    - nutanix.nutanix
+  vars:
+    state: present
+  tasks:
+    - name: "Getting info for image {{ vm_image_name }}"
+      nutanix_image_info:
+        image_name: "{{vm_image_name}}"
+        validate_certs: no
+      register: vm_image_info
+    - debug:
+        msg: "UUID for image {{vm_image_name}} is {{vm_image_info.image_uuid}}"
+
+    - name: "Making sure vm {{vm_name}} is {{ state }}"
+      nutanix_vm:
+        validate_certs: no
+        name: "{{vm_name}}"
+        state: "{{ state }}"
+        cluster: "{{cluster_uuid}}"
+        cpu: 1
+        vcpu: 1
+        memory: 2048
+        disk_list:
+          - clone_from_image: "{{vm_image_info.image_uuid}}"
+            device_type: DISK
+            adapter_type: SCSI
+            size_mib: 100000
+          - size_mib: 100000
+            device_type: "DISK"
+            adapter_type: "SCSI"
+        nic_list:
+          - uuid: "{{subnet_uuid}}"
+        guest_customization:
+          cloud_init: |-
+            #cloud-config
+            users:
+              - name: {{ ansible_user }}
+                sudo: ALL=(ALL) NOPASSWD:ALL
+                ssh-authorized-keys:
+                    - {{ lookup('file',public_key_path )}}
+    - name: VM output
+      when: state == "present"
+      block:
+        - name: "Get info for VM {{ vm_name }}"
+          nutanix_vm_info:
+            validate_certs: no
+            data:
+              filter: "vm_name=={{ vm_name }}"
+              offset: 0
+              length: 100
+              sort_attribute: ASCENDING
+              sort_order: ASCENDING
+          register: vm_info
+        - name: "Setting VM IP fact"
+          set_fact:
+            vm_ip: "{{vm_info.vms_spec[0].resources.nic_list[0].ip_endpoint_list[0].ip}}"
+        - name: "Waiting for SSH to become available on host {{ vm_ip }}"
+          wait_for:
+            port: 22
+            host: "{{ vm_ip }}"
+            search_regex: OpenSSH
+            delay: 10
+          connection: local
+        - debug:
+            msg: "SSH to VM {{vm_name}}: ssh {{ansible_user}}@{{ vm_ip }}"
+    - name: "Refreshing dynamic inventory"
+      meta: refresh_inventory
+
+- hosts: "{{ hostvars['localhost']['vm_name'] }}"
+  gather_facts: no
+  tasks:
+    - raw: "cat /etc/redhat-release"
+      register: raw_redhat_release
+    - debug:
+        msg: "Operating System version retrieved directly from VM: {{ raw_redhat_release.stdout }}"

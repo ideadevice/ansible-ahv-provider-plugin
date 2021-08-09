@@ -1,0 +1,14 @@
+---
+##upload image
+upload_image_url: https://cloud.centos.org/centos/8/x86_64/images/CentOS-8-GenericCloud-8.4.2105-20210603.0.x86_64.qcow2
+upload_image_type: DISK_IMAGE
+upload_image_name: centos_8_ansible_demo
+
+##create_vm
+vm_name: ansible-vm-demo
+cluster_name: NTNX-BELUX
+cluster_uuid: <pe_cluster_uuid>
+subnet_uuid: <subnet_uuid>
+vm_image_name: centos_8_ansible_demo
+ansible_user: demo
+public_key_path: "~/.ssh/id_rsa.pub"
