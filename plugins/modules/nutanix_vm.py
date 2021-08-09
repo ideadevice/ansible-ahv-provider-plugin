@@ -449,6 +449,7 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     create_vm,
     update_vm,
     delete_vm,
+    update_powerstate_vm,
     get_subnet_uuid,
     get_image_uuid,
     get_cluster_storage_container_map,
@@ -1162,14 +1163,10 @@ def _update(params, client, vm_uuid=None):
 
     # Poweroff the VM
     if need_restart:
+        mechanism = "HARD"
+        power_state = "OFF"
 
-        vm_payload = get_vm(vm_uuid, client)
-        if "status" in vm_payload:
-            del vm_payload["status"]
-        vm_payload["spec"]["resources"]["power_state"] = "OFF"
-        vm_payload["metadata"]["spec_version"] += 1
-
-        task_uuid = update_vm(vm_uuid, vm_payload, client)
+        task_uuid = update_powerstate_vm(vm_uuid, client, mechanism, power_state)
         task_status = task_poll(task_uuid, client)
         if task_status:
             result["failed"] = True
@@ -1224,6 +1221,98 @@ def _delete(params, client):
 
     # Delete VM
     task_uuid = delete_vm(vm_uuid, client)
+
+    result["task_uuid"] = task_uuid
+
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["changed"] = True
+
+    return result
+
+
+def _poweron(params, client):
+
+    result = dict(
+        changed=False,
+        task_uuid='',
+    )
+
+    vm_uuid = None
+    vm_name = params["name"]
+    mechanism = "HARD"
+    power_state = "ON"
+
+    if params["vm_uuid"]:
+        vm_uuid = params["vm_uuid"]
+    else:
+        vm_uuid_list = get_vm_uuid(params, client)
+        if not vm_uuid_list:
+            result["failed"] = True
+            result["msg"] = "VM with given name '{0}' not found.".format(vm_name)
+            return result
+
+        if len(vm_uuid_list) > 1:
+            result["failed"] = True
+            result["msg"] = """Multiple Vm's with same name '{0}' exists in the cluster.
+                Specify vm_uuid of the VM you want to poweron.""".format(vm_name)
+            result["vm_uuid"] = vm_uuid_list
+            return result
+
+        vm_uuid = vm_uuid_list[0]
+
+    # Power on VM
+    task_uuid = update_powerstate_vm(vm_uuid, client, mechanism, power_state)
+
+    result["task_uuid"] = task_uuid
+
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["changed"] = True
+
+    return result
+
+
+def _poweroff(params, client):
+
+    result = dict(
+        changed=False,
+        task_uuid='',
+    )
+
+    vm_uuid = None
+    vm_name = params["name"]
+    mechanism = "HARD"
+    power_state = "OFF"
+
+    if params["vm_uuid"]:
+        vm_uuid = params["vm_uuid"]
+    else:
+        vm_uuid_list = get_vm_uuid(params, client)
+        if not vm_uuid_list:
+            result["failed"] = True
+            result["msg"] = "VM with given name '{0}' not found.".format(vm_name)
+            return result
+
+        if len(vm_uuid_list) > 1:
+            result["failed"] = True
+            result["msg"] = """Multiple Vm's with same name '{0}' exists in the cluster.
+                Specify vm_uuid of the VM you want to poweroff.""".format(vm_name)
+            result["vm_uuid"] = vm_uuid_list
+            return result
+
+        vm_uuid = vm_uuid_list[0]
+
+    # Power off VM
+    task_uuid = update_powerstate_vm(vm_uuid, client, mechanism, power_state)
 
     result["task_uuid"] = task_uuid
 

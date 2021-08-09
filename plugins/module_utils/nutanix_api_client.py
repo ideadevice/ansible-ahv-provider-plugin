@@ -138,6 +138,27 @@ def delete_vm(vm_uuid, client):
     return response.json()["status"]["execution_context"]["task_uuid"]
 
 
+def update_powerstate_vm(vm_uuid, client, mechanism, power_state):
+
+    data = get_vm(vm_uuid, client)
+
+    if "status" in data:
+        del data["status"]
+
+    data["spec"]["resources"]["power_state"] = power_state
+
+    if "power_state_mechanism" in data["spec"]["resources"]:
+        data["spec"]["resources"]["power_state_mechanism"]["mechanism"] = mechanism
+    else:
+        data["spec"]["resources"] = {
+            "power_state_mechanism": {
+                "mechanism": mechanism
+            }
+        }
+
+    return update_vm(vm_uuid, data, client)
+
+
 def get_image_uuid(image_name, client):
     length = 250
     offset = 0
