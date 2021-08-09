@@ -332,3 +332,8 @@ def has_changed(source_payload, destination_payload):
         if status:
             return status
     return status
+
+
+def read_file(filename):
+    with open(filename, "r") as f:
+        return f.read()

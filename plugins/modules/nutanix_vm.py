@@ -440,6 +440,8 @@ RETURN = r'''
 import json
 import time
 import base64
+import os
+import yaml
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
@@ -456,7 +458,8 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     is_uuid,
     set_payload_keys,
     task_poll,
-    has_changed
+    has_changed,
+    read_file
 )
 
 
@@ -944,8 +947,20 @@ def create_vm_spec(params, vm_spec, client):
 
     if params["guest_customization"]:
         if params["guest_customization"]["cloud_init"]:
+            file_path = params["guest_customization"]["cloud_init"]
+            if not os.path.exists(file_path):
+                error = "Cloud-init yaml file '{0}' not found.'.".format(file_path)
+                return None, error
+            try:
+                yaml.load(read_file(file_path), Loader=yaml.FullLoader)
+            except yaml.YAMLError as e:
+                error = """Invalid yaml file '{0}'.
+                ERROR: {1}.""".format(file_path, e)
+                return None, error
+
+            cloud_init_content = read_file(file_path)
             cloud_init_encoded = base64.b64encode(
-                params["guest_customization"]["cloud_init"].encode('ascii')
+                cloud_init_content.encode('ascii')
             )
             vm_spec["spec"]["resources"]["guest_customization"] = {
                 "cloud_init": {
@@ -954,8 +969,14 @@ def create_vm_spec(params, vm_spec, client):
             }
 
         if params["guest_customization"]["sysprep"]:
+            file_path = params["guest_customization"]["sysprep"]
+            if not os.path.exists(file_path):
+                error = "Sysprep xml file '{0}' not found.'.".format(file_path)
+                return None, error
+
+            sysprep_content = read_file(file_path)
             sysprep_init_encoded = base64.b64encode(
-                params["guest_customization"]["sysprep"].encode('ascii')
+                sysprep_content.encode('ascii')
             )
             vm_spec["spec"]["resources"]["guest_customization"] = {
                 "sysprep": {
