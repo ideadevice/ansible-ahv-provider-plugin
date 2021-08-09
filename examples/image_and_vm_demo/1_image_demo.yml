@@ -1,0 +1,24 @@
+---
+- hosts: localhost
+  collections:
+    - nutanix.nutanix
+  vars:
+    state: absent
+  tasks:
+    - name: "Making sure image {{ upload_image_name }} is {{ state }}"
+      nutanix_image:
+        image_name: "{{ upload_image_name }}"
+        image_type: "{{ upload_image_type }}"
+        image_url: "{{ upload_image_url }}"
+        validate_certs: no
+        state: "{{ state }}"
+      register: image_upload_output
+    - debug: var=image_upload_output
+    - name: "Getting Image info"
+      nutanix_image_info:
+        image_name: "{{upload_image_name}}"
+        validate_certs: no
+      register: upload_image_info
+      when: state == "present"
+    - debug: var=upload_image_info
+      when: state == "present"
