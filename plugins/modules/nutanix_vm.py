@@ -441,7 +441,7 @@ import json
 import time
 import base64
 import os
-import yaml
+# import yaml #TO-DO figure out yaml import
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
@@ -951,12 +951,12 @@ def create_vm_spec(params, vm_spec, client):
             if not os.path.exists(file_path):
                 error = "Cloud-init yaml file '{0}' not found.'.".format(file_path)
                 return None, error
-            try:
-                yaml.load(read_file(file_path), Loader=yaml.FullLoader)
-            except yaml.YAMLError as e:
-                error = """Invalid yaml file '{0}'.
-                ERROR: {1}.""".format(file_path, e)
-                return None, error
+            # try:
+            #     yaml.load(read_file(file_path), Loader=yaml.FullLoader)
+            # except yaml.YAMLError as e:
+            #     error = """Invalid yaml file '{0}'.
+            #     ERROR: {1}.""".format(file_path, e)
+            #     return None, error
 
             cloud_init_content = read_file(file_path)
             cloud_init_encoded = base64.b64encode(
@@ -1024,8 +1024,9 @@ def update_vm_spec(params, current_vm_payload, client):
     if has_changed_status:
         for i, disk in enumerate(current_vm_disk_list):
             if disk["device_properties"]["device_type"] == "DISK":
-                if disk["disk_size_mib"] < new_vm_disk_list[i]["disk_size_mib"]:
-                    disk["disk_size_mib"] = new_vm_disk_list[i]["disk_size_mib"]
+                if "disk_size_mib" in new_vm_disk_list[i]:
+                    if disk["disk_size_mib"] < new_vm_disk_list[i]["disk_size_mib"]:
+                        disk["disk_size_mib"] = new_vm_disk_list[i]["disk_size_mib"]
 
     new_vm_spec_nic_length = len(new_vm_spec["resources"]["nic_list"])
     current_vm_spec_nic_length = len(current_vm_spec["resources"]["nic_list"])
