@@ -1068,6 +1068,8 @@ def _create(params, client):
 
     vm_uuid = None
     check_for_ip = False
+    ip_poll_max_retries = 180
+    ip_poll_interval = 5
 
     if params["vm_uuid"]:
         vm_uuid = params["vm_uuid"]
@@ -1115,16 +1117,21 @@ def _create(params, client):
         result["msg"] = task_status
         return result
 
+    retries = 0
     while check_for_ip:
         response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
         json_content = json.loads(response.content)
+        result["vm_status"] = json_content["status"]
+        result["vm_ip_address"] = ""
         if len(json_content["status"]["resources"]["nic_list"]) > 0:
             if len(json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"]) > 0:
                 if json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"] != "":
-                    result["vm_status"] = json_content["status"]
                     result["vm_ip_address"] = json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"]
                     break
-        time.sleep(5)
+        time.sleep(ip_poll_interval)
+        retries = (retries + 1)
+        if retries > ip_poll_max_retries:
+            break
 
     result["vm_uuid"] = vm_uuid
     result["changed"] = True
