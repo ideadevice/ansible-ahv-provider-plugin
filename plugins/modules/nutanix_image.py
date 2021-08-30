@@ -53,38 +53,20 @@ options:
         - Image url
         type: str
         required: True
-    force:
-        description:
-        - Used with C(present) or C(absent)
-        - Creates of multiple images with same name when set to true with C(present)
-        - Deletes all image with the same name when set to true with C(absent)
-        type: bool
-        default: False
     image_uuid:
         description:
         - Image UUID
         - Specify image for update if there are multiple images with the same name
+        type: str
+    description:
+        description:
+        - Image description
         type: str
     cluster_name:
         description:
         - Cluster name for image placement in the cluster
         - Image is placed directly on all clusters by default
         type: str
-    new_image_name:
-        description:
-        - New image name for image update
-        type: str
-    new_image_type:
-        description:
-        - New image name for image update
-        - Accepts ISO_IMAGE or DISK_IMAGE
-        type: str
-    validate_certs:
-        description:
-        - Set value to C(False) to skip validation for self signed certificates
-        - This is not recommended for production setup
-        type: bool
-        default: True
     data:
         description:
         - Filter payload
@@ -117,7 +99,12 @@ options:
         - Deletes all image with the same name when set to true with C(absent)
         type: bool
         default: False
-        required: False
+    validate_certs:
+        description:
+        - Set value to C(False) to skip validation for self signed certificates
+        - This is not recommended for production setup
+        type: bool
+        default: True
 author:
     - Balu George (@balugeorge)
 """
@@ -132,6 +119,7 @@ EXAMPLES = r"""
     image_name: "{{ image_name }}"
     image_type: "{{ image_type }}"
     image_url: "{{ image_url }}"
+    image_description: "{{ Image description }}"
     state: present
   delegate_to: localhost
   register: create_image
@@ -202,6 +190,7 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     create_image,
     update_image,
     list_images,
+    get_image,
     delete_image,
     list_clusters,
     task_poll)
@@ -235,7 +224,7 @@ CREATE_PAYLOAD = """{
 
 def set_list_payload(data):
     """Generate default payload for pagination support"""
-    # filter option via fiql is not supporte for images and clusters API
+    # FIQL filters are not supported in images and clusters API
     length = 100
     offset = 0
     payload = {"length": length, "offset": offset}
@@ -250,8 +239,6 @@ def set_list_payload(data):
 
 def generate_argument_spec(result):
     """Generate a dict with all user arguments"""
-
-    # define available arguments/parameters a user can pass to the module
     module_args = dict(
         pc_hostname=dict(type="str", required=True,
                          fallback=(env_fallback, ["PC_HOSTNAME"])),
@@ -264,11 +251,8 @@ def generate_argument_spec(result):
         image_type=dict(type="str"),
         image_url=dict(type="str", required=True),
         image_uuid=dict(type="str"),
-        state=dict(type="str", default="present"),
-        force=dict(type="bool", default=False),
+        description=dict(type="str"),
         cluster_name=dict(type="str"),
-        new_image_name=dict(type="str"),
-        new_image_type=dict(type="str"),
         data=dict(
             type="dict",
             options=dict(
@@ -276,6 +260,8 @@ def generate_argument_spec(result):
                 offset=dict(type="int", default=0)
             )
         ),
+        state=dict(type="str", default="present"),
+        force=dict(type="bool", default=False),
         validate_certs=dict(type="bool", default=True),
     )
 
@@ -284,20 +270,44 @@ def generate_argument_spec(result):
         supports_check_mode=True
     )
 
-    # return initial result dict for dry run
+    # Return initial result dict for dry run
     if module.check_mode:
         module.exit_json(**result)
 
     return module
 
 
-def create_image_spec(module, client):
-    """Generate spec for image creation"""
+def check_if_image_is_present(module, client):
+    """Check if an image is present in PC"""
+    match_name, match_state, only_match_type = False, False, False
+    image_uuid = None
+    image_name = module.params.get("image_name")
+    image_type = module.params.get("image_type")
+    image_url = module.params.get("image_url")
+    data = set_list_payload(module.params["data"])
+    image_list_data = list_images(data, client)
+    # Check for existing image in PC
+    for entity in image_list_data["entities"]:
+        if image_name == entity["status"]["name"]:
+            match_name = True
+            image_uuid = entity["metadata"]["uuid"]
+            if image_type == entity["status"]["resources"]["image_type"] and image_url == entity["status"]["resources"]["source_uri"]:
+                match_state = True
+                break
+            elif image_type == entity["status"]["resources"]["image_type"]:
+                only_match_type = True
+                break
 
+    return match_name, match_state, only_match_type, image_uuid
+
+
+def create_image_spec(module, client, result):
+    """Generate spec for image creation"""
     cluster_validated = False
     image_name = module.params.get("image_name")
     image_url = module.params.get("image_url")
     image_type = module.params.get("image_type")
+    image_description = module.params.get("description")
     cluster_name = module.params.get("cluster_name")
     create_payload = json.loads(CREATE_PAYLOAD)
 
@@ -332,6 +342,8 @@ def create_image_spec(module, client):
     create_payload["spec"]["name"] = image_name
     create_payload["spec"]["resources"]["image_type"] = image_type
     create_payload["spec"]["resources"]["source_uri"] = image_url
+    if image_description:
+        create_payload["spec"]["description"] = image_description
 
     return create_payload
 
@@ -339,25 +351,21 @@ def create_image_spec(module, client):
 def _create(module, client, result):
     """Create image"""
     image_count = 0
-    image_spec = create_image_spec(module, client)
     image_uuid_list = []
-    data = set_list_payload(module.params["data"])
+    image_spec = create_image_spec(module, client, result)
     image_name = module.params.get("image_name")
     force_create = module.params.get("force")
 
-    if image_name:
-        image_list_data = list_images(data, client)
-        for entity in image_list_data["entities"]:
-            if image_name == entity["status"]["name"]:
-                image_uuid = entity["metadata"]["uuid"]
-                image_uuid_list.append(image_uuid)
-                image_update_spec = entity
-                image_count += 1
-            if image_count > 0 and not force_create:
-                result["msg"] = "Found existing images with name {0}, use force option to create new image".format(
-                    image_name)
-                result["failed"] = True
-                return result
+    # Check if image is present
+    match_name, match_state, only_match_type, image_uuid = check_if_image_is_present(
+        module, client)
+    if match_state:
+        return result
+    elif only_match_type:
+        module.fail_json(
+            "Image url does not match that of existing image")
+    elif match_name:
+        return _update(module, client, result, image_uuid)
 
     # Create Image
     task_uuid, image_uuid = create_image(image_spec, client)
@@ -373,53 +381,32 @@ def _create(module, client, result):
     return result
 
 
-def _update(module, client, result):
+def _update(module, client, result, image_uuid):
     """Update Image"""
-
     image_count = 0
-    task_uuid_list, image_list, image_uuid_list = [], [], []
     data = set_list_payload(module.params["data"])
     image_name = module.params.get("image_name")
-    new_image_name = module.params.get("new_image_name")
-    new_image_type = module.params.get("new_image_type")
+    image_type = module.params.get("image_type")
+    image_description = module.params.get("description")
     image_uuid_for_update = module.params.get("image_uuid")
+    image_description = module.params.get("image_description")
+    if image_uuid_for_update:
+        image_uuid = image_uuid_for_update
+    # Get image spec
+    image_spec = get_image(image_uuid, client)
 
-    if image_name and (new_image_name or new_image_type):
-        image_list_data = list_images(data, client)
-        for entity in image_list_data["entities"]:
-            if image_name == entity["status"]["name"]:
-                image_uuid = entity["metadata"]["uuid"]
-                image_uuid_list.append(image_uuid)
-                image_update_spec = entity
-                # Remove status and update image name
-                del image_update_spec["status"]
-                if new_image_name:
-                    image_update_spec["spec"]["name"] = new_image_name
-                if new_image_type:
-                    image_update_spec["spec"]["resources"]["image_type"] = new_image_type
-                update = True
-                image_count += 1
-            elif image_count > 1 and not image_uuid_for_update:
-                result["msg"] = "Found multiple images with name {0}, specify image_uuid".format(
-                    image_name)
-                result["failed"] = True
-                return result
-        if image_count > 1 and image_uuid_for_update:
-            image_uuid = image_uuid_for_update
-        elif image_count == 0:
-            result["msg"] = "Could not find any image with name {0}".format(
-                image_name)
-            result["failed"] = True
-            return result
-        if not image_uuid_list:
-            result["msg"] = "Could not find UUID for image {0}".format(
-                image_name)
-            result["failed"] = True
-            return result
-        if update:
-            task_uuid = update_image(image_uuid, image_update_spec, client)
+    # Update image spec
+    del image_spec["status"]
+    image_spec["spec"]["resources"]["image_type"] = image_type
+    if image_description:
+        image_spec["spec"]["description"] = image_description
+    else:
+        image_uuid = image_spec["metadata"]["uuid"]
 
-    # Check task status for image update
+    # Update image
+    task_uuid = update_image(image_uuid, image_spec, client)
+
+    # Poll task status for image update
     task_status = task_poll(task_uuid, client)
     if task_status:
         result["failed"] = True
@@ -432,14 +419,12 @@ def _update(module, client, result):
 
 def _delete(module, client, result):
     """Delete image(s)"""
-
+    image_count = 0
+    task_uuid_list, image_list, image_uuid_list = [], [], []
     data = set_list_payload(module.params["data"])
     force_delete = module.params.get("force")
-
-    task_uuid_list, image_list, image_uuid_list = [], [], []
-    image_count = 0
-
     image_name = module.params.get("image_name")
+
     if image_name:
         image_list_data = list_images(data, client)
         for entity in image_list_data["entities"]:
@@ -497,6 +482,7 @@ def _delete(module, client, result):
 
 
 def main():
+    """Main function"""
     # Seed result dict
     result_init = dict(
         changed=False,
@@ -505,14 +491,10 @@ def main():
 
     # Generate arg spec and call function
     arg_spec = generate_argument_spec(result_init)
-    nimage_name = arg_spec.params.get("new_image_name")
-    nimage_type = arg_spec.params.get("new_image_type")
 
-    # Instantiate api client
+    # Create api client
     api_client = NutanixApiClient(arg_spec)
-    if arg_spec.params.get("state") == "present" and (nimage_name or nimage_type):
-        result = _update(arg_spec, api_client, result_init)
-    elif arg_spec.params.get("state") == "present":
+    if arg_spec.params.get("state") == "present":
         result = _create(arg_spec, api_client, result_init)
     elif arg_spec.params.get("state") == "absent":
         result = _delete(arg_spec, api_client, result_init)

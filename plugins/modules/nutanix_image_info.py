@@ -146,11 +146,11 @@ def get_image_list():
         ansible_facts=dict(),
     )
 
-    # return initial result dict for dry run without execution
+    # Return initial result dict for dry run without execution
     if module.check_mode:
         module.exit_json(**result)
 
-    # Instantiate api client
+    # Create api client
     client = NutanixApiClient(module)
 
     # Get image list/details
