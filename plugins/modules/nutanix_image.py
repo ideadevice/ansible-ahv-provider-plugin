@@ -62,11 +62,12 @@ options:
         description:
         - Image description
         type: str
-    cluster_name:
+    clusters:
         description:
-        - Cluster name for image placement in the cluster
+        - List of cluster names for image placement under these clusters
         - Image is placed directly on all clusters by default
-        type: str
+        type: list
+        elements: str
     data:
         description:
         - Filter payload
@@ -120,6 +121,9 @@ EXAMPLES = r"""
     image_type: "{{ image_type }}"
     image_url: "{{ image_url }}"
     image_description: "{{ Image description }}"
+    clusters:
+    - "{{ cluster-1 }}"
+    - "{{ cluster-2 }}"
     state: present
   delegate_to: localhost
   register: create_image
@@ -180,12 +184,7 @@ CREATE_PAYLOAD = """{
     "resources": {
       "image_type": "IMAGE_TYPE",
       "source_uri": "IMAGE_URL",
-      "initial_placement_ref_list": [
-        {
-          "kind": "cluster",
-          "uuid": "CLUSTER_UUID"
-        }
-      ],
+      "initial_placement_ref_list": [],
       "source_options": {
         "allow_insecure_connection": true
       }
@@ -230,7 +229,7 @@ def generate_argument_spec(result):
         image_url=dict(type="str", required=True),
         image_uuid=dict(type="str"),
         description=dict(type="str"),
-        cluster_name=dict(type="str"),
+        clusters=dict(type="list", elements="str"),
         data=dict(
             type="dict",
             options=dict(
@@ -282,11 +281,12 @@ def check_if_image_is_present(module, client):
 def create_image_spec(module, client, result):
     """Generate spec for image creation"""
     cluster_validated = False
+    cluster_name_and_uuid = {}
     image_name = module.params.get("image_name")
     image_url = module.params.get("image_url")
     image_type = module.params.get("image_type")
     image_description = module.params.get("description")
-    cluster_name = module.params.get("cluster_name")
+    clusters = module.params.get("clusters")
     create_payload = json.loads(CREATE_PAYLOAD)
 
     # Auto detect image_type based on url extension
@@ -302,17 +302,21 @@ def create_image_spec(module, client, result):
                 "Unable to identify image_type, specify the value manually")
 
     # Get cluster UUID
-    if cluster_name:
+    if clusters:
         cluster_payload = set_list_payload(module.params.get("data"))
         cluster_data = list_clusters(cluster_payload, client)
-        for entity in cluster_data["entities"]:
-            if entity["status"]["name"] == cluster_name:
-                # To-do: change cluster_name to a list for supporting multiple clusters
-                create_payload["spec"]["resources"]["initial_placement_ref_list"][0]["uuid"] = entity["metadata"]["uuid"]
-                cluster_validated = True
-        if not cluster_validated:
+        for cluster_name in clusters:
+            for entity in cluster_data["entities"]:
+                if entity["status"]["name"] == cluster_name:
+                    cluster_uuid = entity["metadata"]["uuid"]
+                    cluster_name_and_uuid[cluster_name] = cluster_uuid
+                    create_payload["spec"]["resources"]["initial_placement_ref_list"].append(
+                        {'kind': 'cluster', 'uuid': cluster_uuid})
+        if len(cluster_name_and_uuid) != len(clusters):
+            for cluster_name in cluster_name_and_uuid:
+                clusters.remove(cluster_name)
             module.fail_json(
-                "Could not find cluster with name {0}".format(cluster_name))
+                "Could not find cluster(s) with name {0}".format(str(clusters)))
     else:
         del create_payload["spec"]["resources"]["initial_placement_ref_list"]
 
