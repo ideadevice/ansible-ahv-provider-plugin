@@ -258,8 +258,8 @@ def generate_argument_spec(result):
 
     module = AnsibleModule(
         argument_spec=module_args,
-        mutually_exclusive=[("image_url", "vm_disk"), ("vm_disk", "vm_disk_uuid")],
-        required_one_of=[("image_url", "vm_disk", "vm_disk_uuid"),],
+        mutually_exclusive=[("image_url", "vm_disk"), ("vm_disk", "vm_disk_uuid"), ],
+        required_one_of=[("image_url", "vm_disk", "vm_disk_uuid"), ],
         supports_check_mode=True
     )
 
@@ -318,7 +318,7 @@ def create_image_spec(module, client, result):
 
     # Get VM UUID for image creation from VM Disk and update spec
     if vm_disk and not vm_disk_uuid:
-        vm_list_payload["filter"] = "vm_name=={}".format(vm_disk)
+        vm_list_payload["filter"] = "vm_name=={0}".format(vm_disk)
         vm_list_data = list_vms(vm_list_payload, client)
         # vm_name is considered to be unique
         # To-do: check and validate vm_disk_uuid for VMs with multiple Disks
