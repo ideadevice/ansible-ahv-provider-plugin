@@ -102,9 +102,8 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 
 
 def set_list_payload(data):
-    length = 100
-    offset = 0
-    payload = {"length": length, "offset": offset}
+    """Generate payload for pagination support"""
+    payload = {}
 
     if data and "length" in data:
         payload["length"] = data["length"]

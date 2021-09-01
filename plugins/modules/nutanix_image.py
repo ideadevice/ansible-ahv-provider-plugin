@@ -47,12 +47,20 @@ options:
         description:
         - Image type, ISO_IMAGE or DISK_IMAGE
         - Auto detetected based on image extension
+        - Ignored if a value of vm_disk or vm_disk_uuid is specified
         type: str
     image_url:
         description:
         - Image url
         type: str
-        required: True
+    vm_disk:
+        description:
+        - Name of VM Disk for image creation
+        type: str
+    vm_disk_uuid:
+        description:
+        - VM Disk UUID
+        type: str
     image_uuid:
         description:
         - Image UUID
@@ -174,6 +182,7 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     list_images,
     get_image,
     delete_image,
+    list_vms,
     list_clusters,
     task_poll)
 
@@ -183,7 +192,6 @@ CREATE_PAYLOAD = """{
     "name": "IMAGE_NAME",
     "resources": {
       "image_type": "IMAGE_TYPE",
-      "source_uri": "IMAGE_URL",
       "initial_placement_ref_list": [],
       "source_options": {
         "allow_insecure_connection": true
@@ -200,16 +208,20 @@ CREATE_PAYLOAD = """{
 
 
 def set_list_payload(data):
-    """Generate default payload for pagination support"""
-    # FIQL filters are not supported in images and clusters API
-    length = 100
-    offset = 0
-    payload = {"length": length, "offset": offset}
+    """
+    Generate payload for pagination support
+    * FIQL filters are not supported in images and clusters API
+    * filter option is only meant for by vm list API(for getting VM UUID,
+      used in image creation from VM Disk)
+    """
+    payload = {}
 
     if data and "length" in data:
         payload["length"] = data["length"]
     if data and "offset" in data:
         payload["offset"] = data["offset"]
+    if data and "filter" in data:
+        payload["filter"] = data["filter"]
 
     return payload
 
@@ -226,7 +238,9 @@ def generate_argument_spec(result):
         pc_port=dict(type="str", default="9440"),
         image_name=dict(type="str", required=True),
         image_type=dict(type="str"),
-        image_url=dict(type="str", required=True),
+        image_url=dict(type="str"),
+        vm_disk=dict(type="str"),
+        vm_disk_uuid=dict(type="str"),
         image_uuid=dict(type="str"),
         description=dict(type="str"),
         clusters=dict(type="list", elements="str"),
@@ -244,6 +258,8 @@ def generate_argument_spec(result):
 
     module = AnsibleModule(
         argument_spec=module_args,
+        mutually_exclusive=[("image_url", "vm_disk"), ("vm_disk", "vm_disk_uuid")],
+        required_one_of=[("image_url", "vm_disk", "vm_disk_uuid"),],
         supports_check_mode=True
     )
 
@@ -256,26 +272,22 @@ def generate_argument_spec(result):
 
 def check_if_image_is_present(module, client):
     """Check if an image is present in PC"""
-    match_name, match_state, only_match_type = False, False, False
+    match_name, match_state = False, False
     image_uuid = None
     image_name = module.params.get("image_name")
     image_type = module.params.get("image_type")
     image_url = module.params.get("image_url")
-    data = set_list_payload(module.params["data"])
-    image_list_data = list_images(data, client)
-    # Check for existing image in PC
+    payload = set_list_payload(module.params["data"])
+    image_list_data = list_images(payload, client)
     for entity in image_list_data["entities"]:
         if image_name == entity["status"]["name"]:
             match_name = True
             image_uuid = entity["metadata"]["uuid"]
-            if image_type == entity["status"]["resources"]["image_type"] and image_url == entity["status"]["resources"]["source_uri"]:
+            if image_type == entity["status"]["resources"]["image_type"]:
                 match_state = True
                 break
-            elif image_type == entity["status"]["resources"]["image_type"]:
-                only_match_type = True
-                break
 
-    return match_name, match_state, only_match_type, image_uuid
+    return match_name, match_state, image_uuid
 
 
 def create_image_spec(module, client, result):
@@ -284,10 +296,13 @@ def create_image_spec(module, client, result):
     cluster_name_and_uuid = {}
     image_name = module.params.get("image_name")
     image_url = module.params.get("image_url")
+    vm_disk = module.params.get("vm_disk")
+    vm_disk_uuid = module.params.get("vm_disk_uuid")
     image_type = module.params.get("image_type")
     image_description = module.params.get("description")
     clusters = module.params.get("clusters")
     create_payload = json.loads(CREATE_PAYLOAD)
+    vm_list_payload = set_list_payload(module.params["data"])
 
     # Auto detect image_type based on url extension
     if not image_type:
@@ -300,6 +315,21 @@ def create_image_spec(module, client, result):
         else:
             module.fail_json(
                 "Unable to identify image_type, specify the value manually")
+
+    # Get VM UUID for image creation from VM Disk and update spec
+    if vm_disk and not vm_disk_uuid:
+        vm_list_payload["filter"] = "vm_name=={}".format(vm_disk)
+        vm_list_data = list_vms(vm_list_payload, client)
+        # vm_name is considered to be unique
+        # To-do: check and validate vm_disk_uuid for VMs with multiple Disks
+        vm_disk_uuid = vm_list_data["entities"][0]["spec"]["resources"]["disk_list"][0]["uuid"]
+    if vm_disk_uuid:
+        create_payload["spec"]["resources"]["data_source_reference"] = {
+            "kind": "vm_disk", "uuid": vm_disk_uuid}
+        create_payload["spec"]["resources"]["image_type"] = "DISK_IMAGE"
+    else:
+        create_payload["spec"]["resources"]["image_type"] = image_type
+        create_payload["spec"]["resources"]["source_uri"] = image_url
 
     # Get cluster UUID
     if clusters:
@@ -322,8 +352,6 @@ def create_image_spec(module, client, result):
 
     create_payload["metadata"]["name"] = image_name
     create_payload["spec"]["name"] = image_name
-    create_payload["spec"]["resources"]["image_type"] = image_type
-    create_payload["spec"]["resources"]["source_uri"] = image_url
     if image_description:
         create_payload["spec"]["description"] = image_description
 
@@ -339,13 +367,10 @@ def _create(module, client, result):
     force_create = module.params.get("force")
 
     # Check if image is present
-    match_name, match_state, only_match_type, image_uuid = check_if_image_is_present(
+    match_name, match_state, image_uuid = check_if_image_is_present(
         module, client)
     if match_state:
         return result
-    elif only_match_type:
-        module.fail_json(
-            "Image url does not match that of existing image")
     elif match_name:
         return _update(module, client, result, image_uuid)
 
