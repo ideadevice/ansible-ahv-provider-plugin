@@ -66,10 +66,26 @@ options:
         - Image UUID
         - Specify image for update if there are multiple images with the same name
         type: str
-    description:
+    image_description:
         description:
         - Image description
         type: str
+    image_checksum:
+        description:
+        - Checksum value and type of the image
+        - Only applicable when image_url is specified
+        type: dict
+        suboptions:
+            value:
+                description:
+                - Checksum value
+                type: str
+                required: True
+            algorithm:
+                description:
+                - Checksum algorithm, SHA_1 or SHA_256
+                type: str
+                required: True
     clusters:
         description:
         - List of cluster names for image placement under these clusters
@@ -129,6 +145,9 @@ EXAMPLES = r"""
     image_type: "{{ image_type }}"
     image_url: "{{ image_url }}"
     image_description: "{{ Image description }}"
+    image_checksum:
+        value: "{{ checksum_value }}"
+        algorithm: "{{ checksum_algorithm }}"
     clusters:
     - "{{ cluster-1 }}"
     - "{{ cluster-2 }}"
@@ -242,7 +261,14 @@ def generate_argument_spec(result):
         vm_disk=dict(type="str"),
         vm_disk_uuid=dict(type="str"),
         image_uuid=dict(type="str"),
-        description=dict(type="str"),
+        image_description=dict(type="str"),
+        image_checksum=dict(
+            type="dict",
+            options=dict(
+                value=dict(type="str", required=True),
+                algorithm=dict(type="str", required=True)
+            )
+        ),
         clusters=dict(type="list", elements="str"),
         data=dict(
             type="dict",
@@ -299,7 +325,8 @@ def create_image_spec(module, client, result):
     vm_disk = module.params.get("vm_disk")
     vm_disk_uuid = module.params.get("vm_disk_uuid")
     image_type = module.params.get("image_type")
-    image_description = module.params.get("description")
+    image_description = module.params.get("image_description")
+    image_checksum = module.params.get("image_checksum")
     clusters = module.params.get("clusters")
     create_payload = json.loads(CREATE_PAYLOAD)
     vm_list_payload = set_list_payload(module.params["data"])
@@ -327,9 +354,14 @@ def create_image_spec(module, client, result):
         create_payload["spec"]["resources"]["data_source_reference"] = {
             "kind": "vm_disk", "uuid": vm_disk_uuid}
         create_payload["spec"]["resources"]["image_type"] = "DISK_IMAGE"
-    else:
+    elif image_url:
         create_payload["spec"]["resources"]["image_type"] = image_type
         create_payload["spec"]["resources"]["source_uri"] = image_url
+
+    # Add image checksum
+    if image_url and image_checksum:
+        create_payload["spec"]["resources"]["checksum"] = {
+            "checksum_value": image_checksum["value"], "checksum_algorithm": image_checksum["algorithm"]}
 
     # Get cluster UUID
     if clusters:
