@@ -55,6 +55,7 @@ options:
         - ' - C(length) (int): length'
         - ' - C(offset) (str): offset'
         type: dict
+        default: {"offset": 0, "length": 500}
         suboptions:
             length:
                 description:
@@ -126,6 +127,7 @@ def get_image_list():
         image_name=dict(type="str"),
         data=dict(
             type="dict",
+            default={"offset": 0, "length": 500},
             options=dict(
                 length=dict(type="int"),
                 offset=dict(type="int")

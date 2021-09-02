@@ -99,21 +99,21 @@ options:
         - ' - C(length) (int): length'
         - ' - C(offset) (str): offset'
         type: dict
+        default: {"offset": 0, "length": 500}
         suboptions:
             length:
                 description:
                 - Length
                 type: int
-                default: 100
             offset:
                 description:
                 - Offset
                 type: int
-                default: 0
     state:
         description:
         - Specify state of image
-        - If C(state) is set to C(present) the image is created, nutanix supports multiple images with the same name
+        - If C(state) is set to C(present) the image is created or updated
+        - Image update operation only supports type and description fields
         - If C(state) is set to C(absent) and the image is present, all images with the specified name are removed
         type: str
         default: present
@@ -272,9 +272,10 @@ def generate_argument_spec(result):
         clusters=dict(type="list", elements="str"),
         data=dict(
             type="dict",
+            default={"offset": 0, "length": 500},
             options=dict(
-                length=dict(type="int", default=100),
-                offset=dict(type="int", default=0)
+                length=dict(type="int"),
+                offset=dict(type="int")
             )
         ),
         state=dict(type="str", default="present"),
@@ -296,24 +297,34 @@ def generate_argument_spec(result):
     return module
 
 
-def check_if_image_is_present(module, client):
+def get_existing_image_state(module, client):
     """Check if an image is present in PC"""
-    match_name, match_state = False, False
+    image_state = {"match_state": False, "match_name": False,
+                   "match_type": False, "match_description": False}
     image_uuid = None
     image_name = module.params.get("image_name")
     image_type = module.params.get("image_type")
+    image_description = module.params.get("image_description")
     image_url = module.params.get("image_url")
     payload = set_list_payload(module.params["data"])
     image_list_data = list_images(payload, client)
     for entity in image_list_data["entities"]:
         if image_name == entity["status"]["name"]:
-            match_name = True
+            existing_image_type = entity["status"]["resources"]["image_type"]
+            existing_image_description = entity["status"].get("description")
+            image_state["match_name"] = True
             image_uuid = entity["metadata"]["uuid"]
-            if image_type == entity["status"]["resources"]["image_type"]:
-                match_state = True
+            if image_type == existing_image_type and image_description == existing_image_description:
+                image_state["match_state"] = True
+                break
+            elif image_type == existing_image_type:
+                image_state["match_type"] = True
+                break
+            elif image_description == existing_image_description:
+                image_state["match_description"] = True
                 break
 
-    return match_name, match_state, image_uuid
+    return image_state, image_uuid
 
 
 def create_image_spec(module, client, result):
@@ -398,13 +409,15 @@ def _create(module, client, result):
     image_name = module.params.get("image_name")
     force_create = module.params.get("force")
 
-    # Check if image is present
-    match_name, match_state, image_uuid = check_if_image_is_present(
-        module, client)
-    if match_state:
-        return result
-    elif match_name:
-        return _update(module, client, result, image_uuid)
+    # Get existing image state
+    image_state, image_uuid = get_existing_image_state(module, client)
+    for state_name, state_value in image_state.items():
+        if state_name == "match_state" and state_value:
+            result["image_state"] = image_state
+            module.exit_json(**result)
+            return result
+        elif state_name != "match_state" and state_value:
+            return _update(module, client, result, image_uuid)
 
     # Create Image
     task_uuid, image_uuid = create_image(image_spec, client)
@@ -441,6 +454,9 @@ def _update(module, client, result, image_uuid):
         image_spec["spec"]["description"] = image_description
     else:
         image_uuid = image_spec["metadata"]["uuid"]
+        # Add empty description
+        # This will clear existing description if playbook doesn't have image_description field
+        image_spec["spec"]["description"] = ""
 
     # Update image
     task_uuid = update_image(image_uuid, image_spec, client)

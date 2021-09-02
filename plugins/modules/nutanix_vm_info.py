@@ -38,7 +38,6 @@ options:
         - PC port
         type: str
         default: 9440
-        required: False
     validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
@@ -58,7 +57,7 @@ options:
         - '     - ASCENDING'
         - '     - DESCENDING'
         type: dict
-        required: False
+        default: {"offset": 0, "length": 500}
         suboptions:
             filter:
                 description:
@@ -141,10 +140,10 @@ def get_vm_list():
                          fallback=(env_fallback, ["PC_USERNAME"])),
         pc_password=dict(type='str', required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
-        pc_port=dict(default="9440", type='str', required=False),
+        pc_port=dict(default="9440", type='str'),
         data=dict(
             type='dict',
-            required=False,
+            default={"offset": 0, "length": 500},
             options=dict(
                 filter=dict(type='str'),
                 length=dict(type='int'),
@@ -153,7 +152,7 @@ def get_vm_list():
                 sort_order=dict(type='str')
             )
         ),
-        validate_certs=dict(default=True, type='bool', required=False),
+        validate_certs=dict(default=True, type='bool'),
     )
 
     module = AnsibleModule(
