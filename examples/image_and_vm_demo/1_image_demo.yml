@@ -10,6 +10,12 @@
         image_name: "{{ upload_image_name }}"
         image_type: "{{ upload_image_type }}"
         image_url: "{{ upload_image_url }}"
+        image_description: "{{ upload_image_description }}"
+        image_checksum:
+          value: "{{ checksum_value }}"
+          algorithm: "{{ checksum_algorithm }}"
+        clusters:
+        - "{{ cluster_name }}"
         validate_certs: no
         state: "{{ state }}"
       register: image_upload_output
