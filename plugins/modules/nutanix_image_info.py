@@ -133,7 +133,8 @@ def get_image_list():
                 offset=dict(type="int")
             )
         ),
-        validate_certs=dict(type="bool", default=True),
+        validate_certs=dict(type="bool", default=True, fallback=(
+            env_fallback, ["VALIDATE_CERTS"])),
     )
 
     module = AnsibleModule(

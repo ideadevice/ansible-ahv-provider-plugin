@@ -152,7 +152,8 @@ def get_vm_list():
                 sort_order=dict(type='str')
             )
         ),
-        validate_certs=dict(default=True, type='bool'),
+        validate_certs=dict(type="bool", default=True, fallback=(
+            env_fallback, ["VALIDATE_CERTS"])),
     )
 
     module = AnsibleModule(

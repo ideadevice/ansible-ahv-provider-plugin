@@ -280,12 +280,14 @@ def generate_argument_spec(result):
         ),
         state=dict(type="str", default="present"),
         force=dict(type="bool", default=False),
-        validate_certs=dict(type="bool", default=True),
+        validate_certs=dict(type="bool", default=True, fallback=(
+            env_fallback, ["VALIDATE_CERTS"])),
     )
 
     module = AnsibleModule(
         argument_spec=module_args,
-        mutually_exclusive=[("image_url", "vm_disk"), ("vm_disk", "vm_disk_uuid"), ],
+        mutually_exclusive=[("image_url", "vm_disk"),
+                            ("vm_disk", "vm_disk_uuid"), ],
         required_one_of=[("image_url", "vm_disk", "vm_disk_uuid"), ],
         supports_check_mode=True
     )
