@@ -451,7 +451,7 @@ def main():
     # Seed result dict
     result_init = dict(
         changed=False,
-        ansible_facts=dict(),
+        ansible_facts={}
     )
 
     # Generate arg spec and call function

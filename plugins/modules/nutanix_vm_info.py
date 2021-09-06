@@ -117,6 +117,13 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 
 
 def set_list_payload(data):
+    """
+    This routine helps to set payload for list API call
+    Args:
+        data(obj): data object
+    Returns:
+        payload(dict): will have post payload dict
+    """
     length = 100
     offset = 0
     filter = ''
@@ -176,7 +183,7 @@ def get_vm_list():
     # Seed result dict
     result = dict(
         changed=False,
-        ansible_facts=dict(),
+        ansible_facts={},
         vms_spec={},
         vm_status={},
         vms={},
@@ -187,7 +194,7 @@ def get_vm_list():
     if module.check_mode:
         module.exit_json(**result)
 
-    # Instantiate api client
+    # Create api client
     client = NutanixApiClient(module)
 
     # List VMs
