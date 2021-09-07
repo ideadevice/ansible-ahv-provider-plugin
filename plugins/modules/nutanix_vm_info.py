@@ -1,5 +1,4 @@
 #!/usr/bin/python
-# -*- coding: utf-8 -*-
 
 # Copyright: (c) 2021, Balu George <balu.george@nutanix.com>
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
@@ -74,12 +73,15 @@ options:
                 type: int
             sort_attribute:
                 description:
-                - Sort Attribute, specify ASCENDING or DESCENDING
+                - Sort Attribute to sort with. Passed along with sort_order.
                 type: str
             sort_order:
                 description:
-                - Sort Order
+                - Sort Order, specify ASCENDING or DESCENDING. Passed along with sort_attribute.
                 type: str
+                choices:
+                - ASCENDING
+                - DESCENDING
 
 author:
     - Balu George (@balugeorge)
@@ -100,37 +102,45 @@ EXAMPLES = r'''
   register: result
 - debug:
     var: "{{ result.vms }}"
-
 '''
 
 RETURN = r'''
 ## TO-DO
 '''
 
-from ansible.module_utils.basic import AnsibleModule, env_fallback
+from ansible.module_utils.basic import env_fallback
+from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
-    list_vms
+    list_entities
 )
 
 
 def set_list_payload(data):
+    """
+    This routine helps to set payload for list API call
+    Args:
+        data(obj): data object
+    Returns:
+        payload(dict): will have post payload dict
+    """
     length = 100
     offset = 0
     filter = ''
 
     payload = {"filter": filter, "length": length, "offset": offset}
 
-    if data and "length" in data:
-        payload["length"] = data["length"]
-    if data and "offset" in data:
-        payload["offset"] = data["offset"]
-    if data and "filter" in data:
-        payload["filter"] = data["filter"]
-    if data and "sort_attribute" in data:
-        payload["sort_attribute"] = data["sort_attribute"]
-    if data and "sort_order" in data:
-        payload["sort_order"] = data["sort_order"]
+    if data:
+        if data["length"]:
+            payload["length"] = data["length"]
+        if data["offset"]:
+            payload["offset"] = data["offset"]
+        if data["filter"]:
+            payload["filter"] = data["filter"]
+        if data["sort_attribute"]:
+            payload["sort_attribute"] = data["sort_attribute"]
+        if data["sort_order"]:
+            payload["sort_order"] = data["sort_order"]
 
     return payload
 
@@ -153,7 +163,13 @@ def get_vm_list():
                 length=dict(type='int'),
                 offset=dict(type='int'),
                 sort_attribute=dict(type='str'),
-                sort_order=dict(type='str')
+                sort_order=dict(
+                    type='str',
+                    choices=[
+                        "ASCENDING",
+                        "DESCENDING"
+                    ]
+                )
             )
         ),
         validate_certs=dict(default=True, type='bool', required=False),
@@ -167,7 +183,7 @@ def get_vm_list():
     # Seed result dict
     result = dict(
         changed=False,
-        ansible_facts=dict(),
+        ansible_facts={},
         vms_spec={},
         vm_status={},
         vms={},
@@ -178,11 +194,11 @@ def get_vm_list():
     if module.check_mode:
         module.exit_json(**result)
 
-    # Instantiate api client
+    # Create api client
     client = NutanixApiClient(module)
 
     # List VMs
-    spec_list, status_list, vm_list, meta_list = [], [], [], []
+    spec_list, status_list, vm_name_list, meta_list = [], [], [], []
     data = set_list_payload(module.params['data'])
     length = data["length"]
     offset = data["offset"]
@@ -190,11 +206,11 @@ def get_vm_list():
 
     while offset < total_matches:
         data["offset"] = offset
-        vms_list = list_vms(data, client)
+        vms_list = list_entities('vms', data, client)
         for entity in vms_list["entities"]:
             spec_list.append(entity["spec"])
             status_list.append(entity["status"])
-            vm_list.append(entity["status"]["name"])
+            vm_name_list.append(entity["status"]["name"])
             meta_list.append(entity["metadata"])
 
         total_matches = vms_list["metadata"]["total_matches"]
@@ -202,7 +218,7 @@ def get_vm_list():
 
     result["vms_spec"] = spec_list
     result["vm_status"] = status_list
-    result["vms"] = vm_list
+    result["vms"] = vm_name_list
     result["meta"] = meta_list
 
     # simple AnsibleModule.exit_json(), passing the key/value results

@@ -21,17 +21,17 @@ description: Create, Update, Delete, Power-on, Power-off Nutanix VM's
 options:
     pc_hostname:
         description:
-        - PC hostname or IP address
+        - PC hostname or IP address; export PC_HOSTNAME=<PC_IP>
         type: str
         required: True
     pc_username:
         description:
-        - PC username
+        - PC username; export PC_USERNAME=<PC_USERNAME>
         type: str
         required: True
     pc_password:
         description:
-        - PC password
+        - PC password; export PC_PASSWORD=<PC_PASSWORD>
         required: True
         type: str
     pc_port:
@@ -87,9 +87,21 @@ options:
         required: True
     cluster:
         description:
-        - PE Cluster uuid/name where you want to place the VM.
+        - PE Cluster uuid or name where you want to place the VM.
         type: str
         required: True
+    power_state:
+        description:
+        - VM power state
+        - Note please send "ON" or "OFF" with quotes.
+        - 'Accepted value for this field:'
+        - '    - C(ON)'
+        - '    - C(OFF)'
+        choices:
+        - "ON"
+        - "OFF"
+        type: str
+        default: "ON"
     dry_run:
         description:
         - Set value to C(True) to skip vm creation and print the spec for verification.
@@ -100,54 +112,250 @@ options:
         - Virtual Machine Disk list
         type: list
         elements: dict
-        suboptions:
-            clone_from_image:
-                description:
-                - Name/UUID of the image
-                type: str
-            size_mib:
-                description:
-                - Disk Size
-                type: int
-            device_type:
-                description:
-                - Disk Device type
-                - 'Accepted value for this field:'
-                - '    - C(DISK)'
-                - '    - C(CDROM)'
-                choices:
-                - DISK
-                - CDROM
-                type: str
-                required: True
-            adapter_type:
-                description:
-                - Disk Adapter type
-                - 'Accepted value for this field:'
-                - '    - C(SCSI)'
-                - '    - C(PCI)'
-                - '    - C(SATA)'
-                - '    - C(IDE)'
-                choices:
-                - SCSI
-                - PCI
-                - SATA
-                - IDE
-                type: str
-                required: True
         required: True
+        suboptions:
+            uuid:
+                description:
+                - 'Disk uuid (Computed)'
+                type: str
+            disk_size_bytes:
+                description:
+                - 'Disk Size in bytes (Computed)'
+                type: int
+            disk_size_mib:
+                description:
+                - 'Disk Size Mib (Optional)'
+                type: int
+            storage_config:
+                description:
+                - Disk storage configuration
+                type: dict
+                suboptions:
+                    flash_mode:
+                        description:
+                        - Flash mode
+                        type: str
+                    storage_container_reference:
+                        description:
+                        - Storage container reference configuration
+                        type: dict
+                        suboptions:
+                            uuid:
+                                description:
+                                - Storage container uuid
+                                type: str
+                            name:
+                                description:
+                                - Storage container name
+                                type: str
+                            kind:
+                                description:
+                                - Storage container kind
+                                type: str
+                                default: storage_container
+                            url:
+                                description:
+                                - Storage container url
+                                type: str
+            device_properties:
+                description:
+                - Disk device properties
+                type: dict
+                suboptions:
+                    device_type:
+                        description:
+                        - Device type
+                        - 'Accepted value for this field:'
+                        - '    - C(DISK)'
+                        - '    - C(CDROM)'
+                        type: str
+                        choices:
+                        - DISK
+                        - CDROM
+                        required: True
+                    disk_address:
+                        description:
+                        - Disk device address
+                        type: dict
+                        suboptions:
+                            device_index:
+                                description:
+                                - Disk device index
+                                type: int
+                            adapter_type:
+                                description:
+                                - Adapter type
+                                - 'Accepted value for this field:'
+                                - '    - C(SCSI)'
+                                - '    - C(PCI)'
+                                - '    - C(SATA)'
+                                - '    - C(IDE)'
+                                type: str
+                                choices:
+                                - SCSI
+                                - PCI
+                                - SATA
+                                - IDE
+                                required: True
+            data_source_reference:
+                description:
+                - Data source reference
+                type: dict
+                suboptions:
+                    uuid:
+                        description:
+                        - Data source uuid
+                        type: str
+                    name:
+                        description:
+                        - Data source Name
+                        type: str
+                    kind:
+                        description:
+                        - Data source kind
+                        type: str
+                        default: image
+                    url:
+                        description:
+                        - Data source url
+                        type: str
     nic_list:
         description:
         - Virtual Machine Nic list
         type: list
         elements: dict
+        required: True
         suboptions:
             uuid:
                 description:
-                - Subnet UUID
+                - Disk uuid (Computed)
                 type: str
+            nic_type:
+                description:
+                - Nic Type
+                - 'Accepted value for this field:'
+                - '    - C(NORMAL_NIC)'
+                type: str
+                default: NORMAL_NIC
+                choices:
+                - NORMAL_NIC
+            num_queues:
+                description:
+                - Number of queues
+                type: int
+            network_function_nic_type:
+                description:
+                - Network function nic type
+                type: str
+            vlan_mode:
+                description:
+                - Network function nic type
+                - 'Accepted value for this field:'
+                - '    - C(ACCESS)'
+                type: str
+                default: ACCESS
+                choices:
+                - ACCESS
+            mac_address:
+                description:
+                - Mac address
+                type: str
+            model:
+                description:
+                - Nic Model
+                type: str
+            is_connected:
+                description:
+                - Is Connected
+                type: bool
+                default: True
+            ip_endpoint_list:
+                description:
+                - Ip Endpoint list
+                type: list
+                elements: dict
+                suboptions:
+                    ip:
+                        description:
+                        - IP Address
+                        type: str
+                    type:
+                        description:
+                        - Assignment type
+                        - 'Accepted value for this field:'
+                        - '    - C(ASSIGNED)'
+                        - '    - C(LEARNED)'
+                        type: str
+                        default: ASSIGNED
+                        choices:
+                        - ASSIGNED
+                        - LEARNED
+                    prefix_length:
+                        description:
+                        - Prefix length
+                        type: int
+                    ip_type:
+                        description:
+                        - IP Type
+                        - 'Accepted value for this field:'
+                        - '    - C(STATIC)'
+                        - '    - C(DHCP)'
+                        type: str
+                        choices:
+                        - STATIC
+                        - DHCP
+                    gateway_address_list:
+                        description:
+                        - Gateway Address
+                        type: list
+                        elements: str
+            secondary_ip_address_list:
+                description:
+                - Secondary IP address list
+                type: list
+                elements: str
+            network_function_chain_reference:
+                description:
+                - Network Function chain reference
+                type: dict
+                suboptions:
+                    name:
+                        description:
+                        - Network Function chain Name
+                        type: str
+                    kind:
+                        description:
+                        - Network Function chain kind
+                        type: str
+                        default: network_function_chain
+                    uuid:
+                        description:
+                        - Network Function chain uuid
+                        type: str
+            subnet_reference:
+                description:
+                - Subnet Reference
+                type: dict
                 required: True
-        required: True
+                suboptions:
+                    name:
+                        description:
+                        - Subnet Reference Name
+                        type: str
+                    kind:
+                        description:
+                        - Subnet Reference kind
+                        type: str
+                        default: subnet
+                    uuid:
+                        description:
+                        - Subnet Reference uuid
+                        type: str
+            trunked_vlan_list:
+                description:
+                - Trunked vlan
+                type: list
+                elements: str
     guest_customization:
         description:
         - Virtual Machine Guest Customization
@@ -190,36 +398,38 @@ EXAMPLES = r'''
     pc_username: "{{ pc_username }}"
     pc_password: "{{ pc_password }}"
     pc_port: 9440
-    validate_certs: False
+    state: present
     name: "vm-0001"
-    cpu: 2
+    cpu: 4
     vcpu: 2
-    memory: 2048
-    cluster: "{{ cluster name or uuid }}"
+    memory: 4096
+    cluster: "{{ cluster uuid or name }}"
     disk_list:
-    - device_type: DISK
-      clone_from_image: "{{ image name or uuid }}"
-      adapter_type: SCSI
-    - device_type: DISK
-      adapter_type: SCSI
-      size_mib: 10240
+    - device_properties:
+        device_type: DISK
+        disk_address:
+          adapter_type: SCSI
+      data_source_reference:
+        name: "{{ image_name }}"
+    - device_properties:
+        device_type: DISK
+        disk_address:
+          adapter_type: SCSI
+      disk_size_mib: 20480
+      storage_config:
+        storage_container_reference:
+          name: "{{ datastore_name }}"
     nic_list:
-    - uuid: "{{ nic name or uuid }}"
-    guest_customization:
-      cloud_init: |-
-          #cloud-config
-          users:
-            - name: centos
-              sudo: ['ALL=(ALL) NOPASSWD:ALL']
-          chpasswd:
-            list: |
-              centos:nutanix/4u
-            expire: False
-          ssh_pwauth: true
+    - subnet_reference:
+        name: vlan.0
+    - subnet_reference:
+        name: vlan.889
+    ip_endpoint_list:
+        - ip: 10.0.0.1
   delegate_to: localhost
-  register: vm
+  register: create_vm
 - debug:
-      msg: "{{ vm }}"
+    msg: "{{ create_vm }}"
 '''
 
 
@@ -230,19 +440,30 @@ RETURN = r'''
 import json
 import time
 import base64
+import os
+# import yaml #TO-DO figure out yaml import
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
+    get_cluster_uuid,
     get_vm_uuid,
     get_vm,
     create_vm,
     update_vm,
     delete_vm,
-    task_poll
+    update_powerstate_vm,
+    get_subnet_uuid,
+    get_image_uuid,
+    get_cluster_storage_container_map,
+    is_uuid,
+    set_payload_keys,
+    task_poll,
+    has_changed,
+    read_file
 )
 
 
-CREATE_PAYLOAD = {
+VM_PAYLOAD = {
     "metadata": {
         "kind": "vm",
         "spec_version": 0
@@ -263,6 +484,71 @@ CREATE_PAYLOAD = {
             "power_state": "power_state"
         }
     }
+}
+
+DISK_PAYLOAD = {
+    "uuid": "",
+    "storage_config": {
+        "flash_mode": "",
+        "storage_container_reference": {
+            "url": "",
+            "kind": "",
+            "uuid": "",
+            "name": ""
+        }
+    },
+    "device_properties": {
+        "device_type": "",
+        "disk_address": {
+            "device_index": 0,
+            "adapter_type": ""
+        }
+    },
+    "data_source_reference": {
+        "url": "",
+        "kind": "",
+        "uuid": "",
+        "name": ""
+    },
+    "disk_size_mib": 0
+}
+
+NIC_PAYLOAD = {
+    "nic_type": "",
+    "uuid": "",
+    "ip_endpoint_list": [
+        {
+            "ip": "",
+            "type": "",
+            "gateway_address_list": [
+                ""
+            ],
+            "prefix_length": 0,
+            "ip_type": ""
+        }
+    ],
+    "num_queues": 0,
+    "secondary_ip_address_list": [
+        ""
+    ],
+    "network_function_nic_type": "",
+    "network_function_chain_reference": {
+        "kind": "",
+        "name": "",
+        "uuid": ""
+    },
+    "vlan_mode": "",
+    "mac_address": "",
+    "subnet_reference": {
+        "kind": "subnet",
+        "name": "",
+        "uuid": ""
+    },
+    "model": "",
+    "is_connected": True,
+    "trunked_vlan_list": [
+        0
+    ]
 }
 
 
@@ -296,27 +582,88 @@ def main():
         vcpu=dict(type='int', required=True),
         memory=dict(type='int', required=True),
         cluster=dict(type='str', required=True),
+        power_state=dict(type='str', default="ON", choices=["ON", "OFF"]),
         dry_run=dict(default=False, type='bool'),
         disk_list=dict(
             type='list',
             required=True,
             elements='dict',
             options=dict(
-                clone_from_image=dict(
+                uuid=dict(
                     type='str'
                 ),
-                size_mib=dict(
+                disk_size_bytes=dict(
                     type='int'
                 ),
-                device_type=dict(
-                    type='str',
-                    required=True,
-                    choices=["DISK", "CDROM"]
+                disk_size_mib=dict(
+                    type='int'
                 ),
-                adapter_type=dict(
-                    type='str',
-                    required=True,
-                    choices=["SCSI", "PCI", "SATA", "IDE"]
+                storage_config=dict(
+                    type='dict',
+                    options=dict(
+                        flash_mode=dict(
+                            type='str'
+                        ),
+                        storage_container_reference=dict(
+                            type='dict',
+                            options=dict(
+                                uuid=dict(
+                                    type='str'
+                                ),
+                                name=dict(
+                                    type='str'
+                                ),
+                                kind=dict(
+                                    type='str',
+                                    default="storage_container"
+                                ),
+                                url=dict(
+                                    type='str'
+                                )
+                            )
+                        )
+                    )
+                ),
+                device_properties=dict(
+                    type='dict',
+                    options=dict(
+                        device_type=dict(
+                            type='str',
+                            required=True,
+                            choices=["DISK", "CDROM"]
+                        ),
+                        disk_address=dict(
+                            type='dict',
+                            options=dict(
+                                device_index=dict(
+                                    type='int'
+                                ),
+                                adapter_type=dict(
+                                    type='str',
+                                    required=True,
+                                    choices=["SCSI", "PCI", "SATA", "IDE"]
+                                )
+                            )
+                        )
+                    )
+                ),
+                data_source_reference=dict(
+                    type='dict',
+                    options=dict(
+                        uuid=dict(
+                            type='str'
+                        ),
+                        name=dict(
+                            type='str'
+                        ),
+                        kind=dict(
+                            type='str',
+                            default="image"
+                        ),
+                        url=dict(
+                            type='str'
+                        )
+                    )
                 )
             )
         ),
@@ -326,9 +673,98 @@ def main():
             elements='dict',
             options=dict(
                 uuid=dict(
+                    type='str'
+                ),
+                nic_type=dict(
                     type='str',
-                    required=True
-                )
+                    default="NORMAL_NIC",
+                    choices=["NORMAL_NIC"]
+                ),
+                num_queues=dict(
+                    type='int'
+                ),
+                network_function_nic_type=dict(
+                    type='str'
+                ),
+                vlan_mode=dict(
+                    type='str',
+                    default="ACCESS",
+                    choices=["ACCESS"]
+                ),
+                mac_address=dict(
+                    type='str'
+                ),
+                model=dict(
+                    type='str'
+                ),
+                is_connected=dict(
+                    type='bool',
+                    default=True
+                ),
+                ip_endpoint_list=dict(
+                    type='list',
+                    elements='dict',
+                    options=dict(
+                        ip=dict(
+                            type='str'
+                        ),
+                        type=dict(
+                            type='str',
+                            default="ASSIGNED",
+                            choices=["ASSIGNED", "LEARNED"]
+                        ),
+                        prefix_length=dict(
+                            type='int'
+                        ),
+                        ip_type=dict(
+                            type='str',
+                            choices=["STATIC", "DHCP"]
+                        ),
+                        gateway_address_list=dict(
+                            type='list',
+                            elements='str'
+                        )
+                    )
+                ),
+                secondary_ip_address_list=dict(
+                    type='list',
+                    elements='str'
+                ),
+                network_function_chain_reference=dict(
+                    type='dict',
+                    options=dict(
+                        name=dict(
+                            type='str'
+                        ),
+                        kind=dict(
+                            type='str',
+                            default="network_function_chain"
+                        ),
+                        uuid=dict(
+                            type='str'
+                        )
+                    )
+                ),
+                subnet_reference=dict(
+                    type='dict',
+                    required=True,
+                    options=dict(
+                        name=dict(
+                            type='str'
+                        ),
+                        kind=dict(
+                            type='str',
+                            default="subnet"
+                        ),
+                        uuid=dict(
+                            type='str'
+                        )
+                    )
+                ),
+                trunked_vlan_list=dict(
+                    type='list',
+                    elements='str'
+                ),
             )
         ),
         guest_customization=dict(
@@ -350,10 +786,6 @@ def main():
         )
     )
 
-    # the AnsibleModule object will be our abstraction working with Ansible
-    # this includes instantiation, a couple of common attr would be the
-    # args/params passed to the execution, as well as if the module
-    # supports check mode
     module = AnsibleModule(
         argument_spec=module_args,
         supports_check_mode=True
@@ -366,13 +798,21 @@ def main():
     if not module.params["pc_password"]:
         module.fail_json("pc_password cannot be empty")
 
-    # Instantiate api client
+    # Create api client
     client = NutanixApiClient(module)
     result = entry_point(module, client)
     module.exit_json(**result)
 
 
 def entry_point(module, client):
+    """
+    This routine is the entry point to select appropriate operation based on state
+    Args:
+        module(obj): Ansible module object
+        client(obj): Rest client obj
+    Returns:
+        (func): VM operation function
+    """
     if module.params["state"] == "present":
         operation = "create"
     elif module.params["state"] == "absent":
@@ -385,69 +825,155 @@ def entry_point(module, client):
     return func(module.params, client)
 
 
-def create_vm_spec(params, vm_spec):
+def create_vm_spec(params, vm_spec, client):
+    """
+    This routine helps to generate update spec of vm
+    Args:
+        params(obj): Ansible params object
+        vm_spec(dict): Reference VM spec
+        client(obj): Rest client obj
+    Returns:
+        vm_spec(dict): VM spec
+    """
     nic_list = []
     disk_list = []
 
-    for nic in params['nic_list']:
-        nic_list.append({
-            "nic_type": "NORMAL_NIC",
-            "vlan_mode": "ACCESS",
-            "subnet_reference": {
-                "kind": "subnet",
-                "uuid": nic["uuid"]
-            },
-            "is_connected": True
-        })
-
-    scsi_counter = 0
-    sata_counter = 0
-    for disk in params['disk_list']:
-        if disk["adapter_type"] == "SCSI":
-            counter = scsi_counter
-            scsi_counter += 1
-        elif disk["adapter_type"] == "SATA":
-            counter = sata_counter
-            sata_counter += 1
-
-        if disk["clone_from_image"]:
-            disk_list.append({
-                "device_properties": {
-                    "disk_address": {
-                        "device_index": counter,
-                        "adapter_type": disk["adapter_type"]
-                    },
-                    "device_type": disk["device_type"]
-                },
-                "data_source_reference": {
-                    "kind": "image",
-                    "uuid": disk["clone_from_image"]
-                }
-            })
+    if is_uuid(params['cluster']):
+        cluster_uuid = params['cluster']
+        cluster_name = None
+    else:
+        cluster_name = params['cluster']
+        cluster_uuid = get_cluster_uuid(params['cluster'], client)
+        if cluster_uuid:
+            cluster_uuid = cluster_uuid[0]
         else:
-            disk_list.append({
-                "device_properties": {
-                    "disk_address": {
-                        "device_index": counter,
-                        "adapter_type": disk["adapter_type"]
-                    },
-                    "device_type": disk["device_type"]
-                },
-                "disk_size_mib": disk["size_mib"]
-            })
+            error = "Could not find cluster '{0}'.".format(params['cluster'])
+            return None, error
+
+    if params['nic_list']:
+        for nic in params['nic_list']:
+            if "subnet_reference" not in nic:
+                error = "Invalid Nic params {0}.".format(nic)
+                return None, error
+
+            if nic["subnet_reference"]["uuid"]:
+                nic_uuid = nic["subnet_reference"]["uuid"]
+            elif nic["subnet_reference"]["name"]:
+                nic_name = nic["subnet_reference"]["name"]
+                nic_uuids = get_subnet_uuid(nic_name, client)
+                if nic_uuids:
+                    nic_uuid = nic_uuids[0]
+                else:
+                    error = "Could not find subnet '{0}'.".format(nic_name)
+                    return None, error
+            else:
+                error = "Either nic uuid or Name should be passed in nic '{0}'.".format(nic)
+                return None, error
+
+            nic["subnet_reference"]["uuid"] = nic_uuid
+            nic_payload = set_payload_keys(nic, NIC_PAYLOAD, {})
+            nic_list.append(nic_payload)
+
+    if params['disk_list']:
+        scsi_counter = 0
+        sata_counter = 0
+        for disk in params['disk_list']:
+            image_name = None
+            if disk["device_properties"]["disk_address"]["adapter_type"] == "SCSI":
+                counter = scsi_counter
+                scsi_counter += 1
+            elif disk["device_properties"]["disk_address"]["adapter_type"] == "SATA":
+                counter = sata_counter
+                sata_counter += 1
+
+            if (
+                "data_source_reference" not in disk and
+                "size_mib" not in disk and
+                "volume_group_reference" not in disk
+            ):
+                error = "Invalid disk params {0}.".format(disk)
+                return None, error
+
+            if disk["data_source_reference"]:
+                if disk["data_source_reference"]["uuid"]:
+                    image_uuid = disk["data_source_reference"]["uuid"]
+                elif disk["data_source_reference"]["name"]:
+                    image_name = disk["data_source_reference"]["name"]
+                    image_uuids = get_image_uuid(image_name, client)
+                    if image_uuids:
+                        image_uuid = image_uuids[0]
+                    else:
+                        error = "Could not find image '{0}'.".format(image_name)
+                        return None, error
+                else:
+                    error = "Either disk uuid or Name should be passed in disk index '{0}'.".format(counter)
+                    return None, error
+
+                disk["device_properties"]["disk_address"]["device_index"] = counter
+                disk["data_source_reference"]["uuid"] = image_uuid
+            else:
+                disk["device_properties"]["disk_address"]["device_index"] = counter
+
+            if disk["storage_config"]:
+                if disk["storage_config"]["storage_container_reference"]:
+                    if disk["storage_config"]["storage_container_reference"]["uuid"]:
+                        sc_uuid = disk["storage_config"]["storage_container_reference"]["uuid"]
+                    elif disk["storage_config"]["storage_container_reference"]["name"]:
+                        sc_name = disk["storage_config"]["storage_container_reference"]["name"]
+                        cluster_sc_uuid_map = get_cluster_storage_container_map(sc_name, client)
+                        if cluster_sc_uuid_map:
+                            try:
+                                sc_uuid = cluster_sc_uuid_map[cluster_uuid]
+                            except KeyError:
+                                error = "Storage container '{0}' provided doesn't exists in the given cluster '{1}'.".format(sc_name, cluster_uuid)
+                                return None, error
+                        else:
+                            error = "Storage container '{0}' provided doesn't exists in the given cluster '{1}'.".format(sc_name, cluster_uuid)
+                            return None, error
+                    else:
+                        error = "Either storage container uuid or Name should be passed in disk index '{0}'.".format(counter)
+                        return None, error
+
+                    disk["storage_config"]["storage_container_reference"]["uuid"] = sc_uuid
+
+            disk_payload = set_payload_keys(disk, DISK_PAYLOAD, {})
+
+            if image_name:
+                del disk_payload["data_source_reference"]["name"]
+
+            disk_list.append(disk_payload)
 
     vm_spec["spec"]["name"] = params['name']
     vm_spec["spec"]["resources"]["num_sockets"] = params['cpu']
     vm_spec["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
     vm_spec["spec"]["resources"]["memory_size_mib"] = params['memory']
-    vm_spec["spec"]["resources"]["power_state"] = "ON"
     vm_spec["spec"]["resources"]["nic_list"] = nic_list
     vm_spec["spec"]["resources"]["disk_list"] = disk_list
+    vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": cluster_uuid}
+    if cluster_name:
+        vm_spec["spec"]["cluster_reference"]["name"] = cluster_name
+
+    if params["power_state"]:
+        vm_spec["spec"]["resources"]["power_state"] = params["power_state"]
+    else:
+        vm_spec["spec"]["resources"]["power_state"] = "ON"
 
     if params["guest_customization"]:
         if params["guest_customization"]["cloud_init"]:
+            file_path = params["guest_customization"]["cloud_init"]
+            if not os.path.exists(file_path):
+                error = "Cloud-init yaml file '{0}' not found.'.".format(file_path)
+                return None, error
+            # try:
+            #     yaml.load(read_file(file_path), Loader=yaml.FullLoader)
+            # except yaml.YAMLError as e:
+            #     error = """Invalid yaml file '{0}'.
+            #     ERROR: {1}.""".format(file_path, e)
+            #     return None, error
+
+            cloud_init_content = read_file(file_path)
             cloud_init_encoded = base64.b64encode(
-                params["guest_customization"]["cloud_init"].encode('ascii')
+                cloud_init_content.encode('ascii')
             )
             vm_spec["spec"]["resources"]["guest_customization"] = {
                 "cloud_init": {
@@ -456,8 +982,14 @@ def create_vm_spec(params, vm_spec):
             }
 
         if params["guest_customization"]["sysprep"]:
+            file_path = params["guest_customization"]["sysprep"]
+            if not os.path.exists(file_path):
+                error = "Sysprep xml file '{0}' not found.'.".format(file_path)
+                return None, error
+
+            sysprep_content = read_file(file_path)
             sysprep_init_encoded = base64.b64encode(
-                params["guest_customization"]["sysprep"].encode('ascii')
+                sysprep_content.encode('ascii')
             )
             vm_spec["spec"]["resources"]["guest_customization"] = {
                 "sysprep": {
@@ -466,108 +998,105 @@ def create_vm_spec(params, vm_spec):
                 }
             }
 
-    vm_spec["spec"]["cluster_reference"] = {"kind": "cluster", "uuid": params['cluster']}
-
-    return vm_spec
+    return vm_spec, None
 
 
-def update_vm_spec(params, vm_data):
+def update_vm_spec(params, current_vm_payload, client):
+    """
+    This routine helps to generate update spec of vm
+    Args:
+        params(obj): Ansible params object
+        current_vm_payload(dict): Existing VM spec
+        client(obj): Rest client obj
+    Returns:
+        updated_vm_payload(dict): Updated vm spec
+    """
+    new_vm_payload, error = create_vm_spec(params, VM_PAYLOAD, client)
+    if error:
+        return new_vm_payload, error
 
-    nic_list = []
-    disk_list = []
-    guest_customization_cdrom = None
-    vm_spec = vm_data["spec"]
-    spec_nic_list = vm_spec["resources"]["nic_list"]
-    spec_disk_list = vm_spec["resources"]["disk_list"]
+    new_vm_spec = new_vm_payload["spec"]
+    current_vm_spec = current_vm_payload["spec"]
 
-    param_disk_list = params['disk_list']
-    param_nic_list = params['nic_list']
+    has_changed_status = has_changed(new_vm_spec, current_vm_spec)
 
-    if params["guest_customization"]:
-        if (
-            params["guest_customization"]["cloud_init"] or
-            params["guest_customization"]["sysprep"]
-        ):
-            guest_customization_cdrom = spec_disk_list.pop()
+    new_vm_spec_disk_length = len(new_vm_spec["resources"]["disk_list"])
+    current_vm_spec_disk_length = len(current_vm_spec["resources"]["disk_list"])
 
-    scsi_counter = 0
-    sata_counter = 0
-    for i, disk in enumerate(param_disk_list):
-        if disk["adapter_type"] == "SCSI":
-            counter = scsi_counter
-            scsi_counter += 1
-        elif disk["adapter_type"] == "SATA":
-            counter = sata_counter
-            sata_counter += 1
+    new_vm_disk_list = new_vm_spec["resources"]["disk_list"]
+    current_vm_disk_list = current_vm_spec["resources"]["disk_list"]
 
-        if disk["clone_from_image"]:
-            try:
-                spec_disk = spec_disk_list[i]
-                disk_list.append(spec_disk)
-            except IndexError:
-                disk_list.append({
-                    "device_properties": {
-                        "disk_address": {
-                            "device_index": counter,
-                            "adapter_type": disk["adapter_type"]
-                        },
-                        "device_type": disk["device_type"]
-                    },
-                    "data_source_reference": {
-                        "kind": "image",
-                        "uuid": disk["clone_from_image"]
-                    }
-                })
-        else:
-            try:
-                spec_disk = spec_disk_list[i]
-                if spec_disk["disk_size_mib"] != disk["size_mib"]:
-                    spec_disk["disk_size_mib"] = disk["size_mib"]
-                disk_list.append(spec_disk)
-            except IndexError:
-                disk_list.append({
-                    "device_properties": {
-                        "disk_address": {
-                            "device_index": counter,
-                            "adapter_type": disk["adapter_type"]
-                        },
-                        "device_type": disk["device_type"]
-                    },
-                    "disk_size_mib": disk["size_mib"]
-                })
+    if "guest_customization" in current_vm_spec["resources"]:
+        current_vm_spec_disk_length = (current_vm_spec_disk_length - 1)
 
-    if guest_customization_cdrom:
-        disk_list.append(guest_customization_cdrom)
+    if new_vm_spec_disk_length != current_vm_spec_disk_length:
+        has_changed_status = True
+        if new_vm_spec_disk_length > current_vm_spec_disk_length:
+            diff_length = new_vm_spec_disk_length - current_vm_spec_disk_length
+            diff_disk_list = new_vm_disk_list[-diff_length:]
+            for disk in diff_disk_list:
+                current_vm_disk_list.append(disk)
+        elif new_vm_spec_disk_length < current_vm_spec_disk_length:
+            if current_vm_spec["resources"]["guest_customization"]:
+                new_vm_spec_disk_length = (new_vm_spec_disk_length + 1)
+            current_vm_disk_list = current_vm_disk_list[:new_vm_spec_disk_length]
 
-    for i, nic in enumerate(param_nic_list):
-        try:
-            spec_nic = spec_nic_list[i]
-            nic_list.append(spec_nic)
-        except IndexError:
-            nic_list.append({
-                "nic_type": "NORMAL_NIC",
-                "vlan_mode": "ACCESS",
-                "subnet_reference": {
-                    "kind": "subnet",
-                    "uuid": nic["uuid"]
-                },
-                "is_connected": True
-            })
+    if has_changed_status:
+        for i, disk in enumerate(current_vm_disk_list):
+            if disk["device_properties"]["device_type"] == "DISK":
+                if "disk_size_mib" in new_vm_disk_list[i]:
+                    if disk["disk_size_mib"] < new_vm_disk_list[i]["disk_size_mib"]:
+                        disk["disk_size_mib"] = new_vm_disk_list[i]["disk_size_mib"]
 
-    vm_data["spec"]["resources"]["num_sockets"] = params['cpu']
-    vm_data["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
-    vm_data["spec"]["resources"]["memory_size_mib"] = params['memory']
-    vm_data["spec"]["resources"]["power_state"] = "ON"
-    vm_data["spec"]["resources"]["nic_list"] = nic_list
-    vm_data["spec"]["resources"]["disk_list"] = disk_list
-    vm_data["metadata"]["spec_version"] += 1
+    new_vm_spec_nic_length = len(new_vm_spec["resources"]["nic_list"])
+    current_vm_spec_nic_length = len(current_vm_spec["resources"]["nic_list"])
 
-    return vm_data
+    new_vm_nic_list = new_vm_spec["resources"]["nic_list"]
+    current_vm_nic_list = current_vm_spec["resources"]["nic_list"]
+
+    if new_vm_spec_nic_length != current_vm_spec_nic_length:
+        has_changed_status = True
+        if new_vm_spec_nic_length > current_vm_spec_nic_length:
+            diff_length = new_vm_spec_nic_length - current_vm_spec_nic_length
+            diff_nic_list = new_vm_nic_list[-diff_length:]
+            for nic in diff_nic_list:
+                current_vm_nic_list.append(nic)
+        elif new_vm_spec_nic_length < current_vm_spec_nic_length:
+            current_vm_nic_list = current_vm_nic_list[:new_vm_spec_nic_length]
+
+    updated_vm_payload = current_vm_payload
+
+    if not has_changed_status:
+        return has_changed_status, None
+
+    updated_vm_payload["spec"]["name"] = params['name']
+    updated_vm_payload["spec"]["resources"]["num_sockets"] = params['cpu']
+    updated_vm_payload["spec"]["resources"]["num_vcpus_per_socket"] = params['vcpu']
+    updated_vm_payload["spec"]["resources"]["memory_size_mib"] = params['memory']
+
+    updated_vm_payload["spec"]["resources"]["nic_list"] = current_vm_nic_list
+    updated_vm_payload["spec"]["resources"]["disk_list"] = current_vm_disk_list
+    updated_vm_payload["metadata"]["spec_version"] += 1
+
+    if params["power_state"]:
+        updated_vm_payload["spec"]["resources"]["power_state"] = params["power_state"]
+
+    return updated_vm_payload, None
 
 
 def _create(params, client):
-
+    """
+    This routine helps to create the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     vm_uuid = None
+    check_for_ip = False
+    ip_poll_max_retries = 180
+    ip_poll_interval = 5
 
     if params["vm_uuid"]:
         vm_uuid = params["vm_uuid"]
@@ -592,15 +1121,22 @@ def _create(params, client):
         return _update(params, client, vm_uuid=vm_uuid)
 
     # Create VM Spec
-    vm_spec = CREATE_PAYLOAD
-    vm_spec = create_vm_spec(params, vm_spec)
-
-    if params['dry_run'] is True:
-        result["vm_spec"] = vm_spec
+    vm_payload, error = create_vm_spec(params, VM_PAYLOAD, client)
+    if error:
+        result["failed"] = True
+        result["msg"] = error
         return result
 
+    if params['dry_run'] is True:
+        result["vm_spec"] = vm_payload
+        return result
+
+    if params['power_state']:
+        if params['power_state'] == "ON":
+            check_for_ip = True
+
     # Create VM
-    task_uuid, vm_uuid = create_vm(vm_spec, client)
+    task_uuid, vm_uuid = create_vm(vm_payload, client)
 
     task_status = task_poll(task_uuid, client)
     if task_status:
@@ -608,16 +1144,21 @@ def _create(params, client):
         result["msg"] = task_status
         return result
 
-    while True:
+    retries = 0
+    while check_for_ip:
         response = client.request(api_endpoint="v3/vms/%s" % vm_uuid, method="GET", data=None)
         json_content = json.loads(response.content)
+        result["vm_status"] = json_content["status"]
+        result["vm_ip_address"] = ""
         if len(json_content["status"]["resources"]["nic_list"]) > 0:
             if len(json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"]) > 0:
                 if json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"] != "":
-                    result["vm_status"] = json_content["status"]
                     result["vm_ip_address"] = json_content["status"]["resources"]["nic_list"][0]["ip_endpoint_list"][0]["ip"]
                     break
-        time.sleep(5)
+        time.sleep(ip_poll_interval)
+        retries = (retries + 1)
+        if retries > ip_poll_max_retries:
+            break
 
     result["vm_uuid"] = vm_uuid
     result["changed"] = True
@@ -626,7 +1167,14 @@ def _create(params, client):
 
 
 def _update(params, client, vm_uuid=None):
-
+    """
+    This routine helps to update the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     result = dict(
         changed=False,
         vm_spec={},
@@ -634,41 +1182,65 @@ def _update(params, client, vm_uuid=None):
         task_uuid=''
     )
 
+    need_restart = False
+
     if not vm_uuid:
         vm_uuid = get_vm_uuid(params, client)[0]
 
-    vm_json = get_vm(vm_uuid, client)
+    current_vm_payload = get_vm(vm_uuid, client)
+
+    current_vm_disk_list_length = len(current_vm_payload["spec"]["resources"]["disk_list"])
+    if "guest_customization" in current_vm_payload["spec"]["resources"]:
+        current_vm_disk_list_length = (current_vm_disk_list_length - 1)
+
+    new_vm_disk_list_length = len(params["disk_list"])
+
+    if (
+        params['cpu'] < current_vm_payload["status"]["resources"]["num_sockets"] or
+        params['vcpu'] < current_vm_payload["status"]["resources"]["num_vcpus_per_socket"] or
+        params['memory'] < current_vm_payload["status"]["resources"]["memory_size_mib"] or
+        len(params['nic_list']) < len(current_vm_payload["status"]["resources"]["nic_list"]) or
+        new_vm_disk_list_length < current_vm_disk_list_length
+    ):
+        if current_vm_payload["status"]["resources"]["power_state"] == "ON":
+            need_restart = True
+
+    if "status" in current_vm_payload:
+        del current_vm_payload["status"]
+
+    # Update VM spec
+    updated_vm_payload, error = update_vm_spec(params, current_vm_payload, client)
+    if error:
+        result["failed"] = True
+        result["msg"] = error
+        return result
+
+    if not updated_vm_payload:
+        result["msg"] = "VM is in same state."
+        return result
+
+    result["updated_vm_spec"] = updated_vm_payload
+
+    if params['dry_run'] is True:
+        return result
 
     # Poweroff the VM
-    if vm_json["status"]["resources"]["power_state"] == "ON":
+    if need_restart:
+        mechanism = "HARD"
+        power_state = "OFF"
 
-        del vm_json["status"]
-        vm_json["spec"]["resources"]["power_state"] = "OFF"
-        vm_json["metadata"]["spec_version"] += 1
-
-        task_uuid = update_vm(vm_uuid, vm_json, client)
-
+        task_uuid = update_powerstate_vm(vm_uuid, client, mechanism, power_state)
         task_status = task_poll(task_uuid, client)
         if task_status:
             result["failed"] = True
             result["msg"] = task_status
             return result
 
-        vm_json["metadata"]["entity_version"] = "%d" % (
-            int(vm_json["metadata"]["entity_version"]) + 1
+        updated_vm_payload["metadata"]["entity_version"] = "%d" % (
+            int(updated_vm_payload["metadata"]["entity_version"]) + 1
         )
 
-    # Update the VM
-    if "status" in vm_json:
-        del vm_json["status"]
-    updated_vm_spec = update_vm_spec(params, vm_json)
-    updated_vm_spec["spec"]["resources"]["power_state"] = "ON"
-    result["updated_vm_spec"] = updated_vm_spec
-
-    if params['dry_run'] is True:
-        return result
-
-    task_uuid = update_vm(vm_uuid, updated_vm_spec, client)
+    task_uuid = update_vm(vm_uuid, updated_vm_payload, client)
     result["task_uuid"] = task_uuid
 
     task_status = task_poll(task_uuid, client)
@@ -683,30 +1255,148 @@ def _update(params, client, vm_uuid=None):
 
 
 def _delete(params, client):
-
-    vm_uuid = None
-
-    if params["vm_uuid"]:
-        vm_uuid = params["vm_uuid"]
-
+    """
+    This routine helps to delete the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     result = dict(
         changed=False,
         task_uuid='',
     )
 
-    vm_uuid_list = get_vm_uuid(params, client)
-    if len(vm_uuid_list) > 1 and not vm_uuid:
-        result["failed"] = True
-        result["msg"] = """Multiple Vm's with same name '%s' exists in the cluster.
-            Specify vm_uuid of the VM you want to delete.""" % params["name"]
-        result["vm_uuid"] = vm_uuid_list
-        return result
+    vm_uuid = None
+    vm_name = params["name"]
 
-    if not vm_uuid:
+    if params["vm_uuid"]:
+        vm_uuid = params["vm_uuid"]
+    else:
+        vm_uuid_list = get_vm_uuid(params, client)
+        if not vm_uuid_list:
+            result["failed"] = True
+            result["msg"] = "VM with given name '{0}' not found.".format(vm_name)
+            return result
+
+        if len(vm_uuid_list) > 1:
+            result["failed"] = True
+            result["msg"] = """Multiple Vm's with same name '{0}' exists in the cluster.
+                Specify vm_uuid of the VM you want to delete.""".format(vm_name)
+            result["vm_uuid"] = vm_uuid_list
+            return result
+
         vm_uuid = vm_uuid_list[0]
 
     # Delete VM
     task_uuid = delete_vm(vm_uuid, client)
+
+    result["task_uuid"] = task_uuid
+
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["changed"] = True
+
+    return result
+
+
+def _poweron(params, client):
+    """
+    This routine helps to power on the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
+    result = dict(
+        changed=False,
+        task_uuid='',
+    )
+
+    vm_uuid = None
+    vm_name = params["name"]
+    mechanism = "HARD"
+    power_state = "ON"
+
+    if params["vm_uuid"]:
+        vm_uuid = params["vm_uuid"]
+    else:
+        vm_uuid_list = get_vm_uuid(params, client)
+        if not vm_uuid_list:
+            result["failed"] = True
+            result["msg"] = "VM with given name '{0}' not found.".format(vm_name)
+            return result
+
+        if len(vm_uuid_list) > 1:
+            result["failed"] = True
+            result["msg"] = """Multiple Vm's with same name '{0}' exists in the cluster.
+                Specify vm_uuid of the VM you want to poweron.""".format(vm_name)
+            result["vm_uuid"] = vm_uuid_list
+            return result
+
+        vm_uuid = vm_uuid_list[0]
+
+    # Power on VM
+    task_uuid = update_powerstate_vm(vm_uuid, client, mechanism, power_state)
+
+    result["task_uuid"] = task_uuid
+
+    task_status = task_poll(task_uuid, client)
+    if task_status:
+        result["failed"] = True
+        result["msg"] = task_status
+        return result
+
+    result["changed"] = True
+
+    return result
+
+
+def _poweroff(params, client):
+    """
+    This routine helps to power off the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
+    result = dict(
+        changed=False,
+        task_uuid='',
+    )
+
+    vm_uuid = None
+    vm_name = params["name"]
+    mechanism = "HARD"
+    power_state = "OFF"
+
+    if params["vm_uuid"]:
+        vm_uuid = params["vm_uuid"]
+    else:
+        vm_uuid_list = get_vm_uuid(params, client)
+        if not vm_uuid_list:
+            result["failed"] = True
+            result["msg"] = "VM with given name '{0}' not found.".format(vm_name)
+            return result
+
+        if len(vm_uuid_list) > 1:
+            result["failed"] = True
+            result["msg"] = """Multiple Vm's with same name '{0}' exists in the cluster.
+                Specify vm_uuid of the VM you want to poweroff.""".format(vm_name)
+            result["vm_uuid"] = vm_uuid_list
+            return result
+
+        vm_uuid = vm_uuid_list[0]
+
+    # Power off VM
+    task_uuid = update_powerstate_vm(vm_uuid, client, mechanism, power_state)
 
     result["task_uuid"] = task_uuid
 

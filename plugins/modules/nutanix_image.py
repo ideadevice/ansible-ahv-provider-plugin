@@ -187,7 +187,7 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     NutanixApiClient,
     create_image,
     update_image,
-    list_images,
+    list_entities,
     delete_image,
     task_poll)
 
@@ -301,7 +301,7 @@ def _create(module, client, result):
     force_create = module.params.get("force")
 
     if image_name:
-        image_list_data = list_images(data, client)
+        image_list_data = list_entities('images', data, client)
         for entity in image_list_data["entities"]:
             if image_name == entity["status"]["name"]:
                 image_uuid = entity["metadata"]["uuid"]
@@ -338,7 +338,7 @@ def _update(module, client, result):
     image_uuid_for_update = module.params.get("image_uuid")
 
     if image_name and (new_image_name or new_image_type):
-        image_list_data = list_images(data, client)
+        image_list_data = list_entities('images', data, client)
         for entity in image_list_data["entities"]:
             if image_name == entity["status"]["name"]:
                 image_uuid = entity["metadata"]["uuid"]
@@ -392,7 +392,7 @@ def _delete(module, client, result):
 
     image_name = module.params.get("image_name")
     if image_name:
-        image_list_data = list_images(data, client)
+        image_list_data = list_entities('images', data, client)
         for entity in image_list_data["entities"]:
             if image_name == entity["status"]["name"]:
                 image_uuid = entity["metadata"]["uuid"]
@@ -451,7 +451,7 @@ def main():
     # Seed result dict
     result_init = dict(
         changed=False,
-        ansible_facts=dict(),
+        ansible_facts={}
     )
 
     # Generate arg spec and call function
