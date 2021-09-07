@@ -786,10 +786,6 @@ def main():
         )
     )
 
-    # the AnsibleModule object will be our abstraction working with Ansible
-    # this includes instantiation, a couple of common attr would be the
-    # args/params passed to the execution, as well as if the module
-    # supports check mode
     module = AnsibleModule(
         argument_spec=module_args,
         supports_check_mode=True
@@ -802,13 +798,21 @@ def main():
     if not module.params["pc_password"]:
         module.fail_json("pc_password cannot be empty")
 
-    # Instantiate api client
+    # Create api client
     client = NutanixApiClient(module)
     result = entry_point(module, client)
     module.exit_json(**result)
 
 
 def entry_point(module, client):
+    """
+    This routine is the entry point to select appropriate operation based on state
+    Args:
+        module(obj): Ansible module object
+        client(obj): Rest client obj
+    Returns:
+        (func): VM operation function
+    """
     if module.params["state"] == "present":
         operation = "create"
     elif module.params["state"] == "absent":
@@ -822,6 +826,15 @@ def entry_point(module, client):
 
 
 def create_vm_spec(params, vm_spec, client):
+    """
+    This routine helps to generate update spec of vm
+    Args:
+        params(obj): Ansible params object
+        vm_spec(dict): Reference VM spec
+        client(obj): Rest client obj
+    Returns:
+        vm_spec(dict): VM spec
+    """
     nic_list = []
     disk_list = []
 
@@ -989,8 +1002,15 @@ def create_vm_spec(params, vm_spec, client):
 
 
 def update_vm_spec(params, current_vm_payload, client):
-
-    # Create VM Spec
+    """
+    This routine helps to generate update spec of vm
+    Args:
+        params(obj): Ansible params object
+        current_vm_payload(dict): Existing VM spec
+        client(obj): Rest client obj
+    Returns:
+        updated_vm_payload(dict): Updated vm spec
+    """
     new_vm_payload, error = create_vm_spec(params, VM_PAYLOAD, client)
     if error:
         return new_vm_payload, error
@@ -1065,7 +1085,14 @@ def update_vm_spec(params, current_vm_payload, client):
 
 
 def _create(params, client):
-
+    """
+    This routine helps to create the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     vm_uuid = None
     check_for_ip = False
     ip_poll_max_retries = 180
@@ -1140,7 +1167,14 @@ def _create(params, client):
 
 
 def _update(params, client, vm_uuid=None):
-
+    """
+    This routine helps to update the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     result = dict(
         changed=False,
         vm_spec={},
@@ -1221,7 +1255,14 @@ def _update(params, client, vm_uuid=None):
 
 
 def _delete(params, client):
-
+    """
+    This routine helps to delete the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     result = dict(
         changed=False,
         task_uuid='',
@@ -1265,7 +1306,14 @@ def _delete(params, client):
 
 
 def _poweron(params, client):
-
+    """
+    This routine helps to power on the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     result = dict(
         changed=False,
         task_uuid='',
@@ -1311,7 +1359,14 @@ def _poweron(params, client):
 
 
 def _poweroff(params, client):
-
+    """
+    This routine helps to power off the given VM
+    Args:
+        params(obj): Ansible params object
+        client(obj): Rest client obj
+    Returns:
+        result(obj): Ansible result object
+    """
     result = dict(
         changed=False,
         task_uuid='',

@@ -143,7 +143,7 @@ def get_image_list():
     # Seed result dict
     result = dict(
         changed=False,
-        ansible_facts=dict(),
+        ansible_facts={},
     )
 
     # return initial result dict for dry run without execution
