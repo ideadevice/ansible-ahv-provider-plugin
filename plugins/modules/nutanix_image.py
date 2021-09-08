@@ -198,11 +198,9 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
     NutanixApiClient,
     create_image,
     update_image,
-    list_images,
+    list_entities,
     get_image,
     delete_image,
-    list_vms,
-    list_clusters,
     task_poll)
 
 
@@ -309,7 +307,7 @@ def get_existing_image_state(module, client):
     image_description = module.params.get("image_description")
     image_url = module.params.get("image_url")
     payload = set_list_payload(module.params["data"])
-    image_list_data = list_images(payload, client)
+    image_list_data = list_entities('images', payload, client)
     for entity in image_list_data["entities"]:
         if image_name == entity["status"]["name"]:
             existing_image_type = entity["status"]["resources"]["image_type"]
@@ -359,7 +357,7 @@ def create_image_spec(module, client, result):
     # Get VM UUID for image creation from VM Disk and update spec
     if vm_disk and not vm_disk_uuid:
         vm_list_payload["filter"] = "vm_name=={0}".format(vm_disk)
-        vm_list_data = list_vms(vm_list_payload, client)
+        vm_list_data = list_entities('vms', vm_list_payload, client)
         # vm_name is considered to be unique
         # To-do: check and validate vm_disk_uuid for VMs with multiple Disks
         vm_disk_uuid = vm_list_data["entities"][0]["spec"]["resources"]["disk_list"][0]["uuid"]
@@ -379,7 +377,7 @@ def create_image_spec(module, client, result):
     # Get cluster UUID
     if clusters:
         cluster_payload = set_list_payload(module.params.get("data"))
-        cluster_data = list_clusters(cluster_payload, client)
+        cluster_data = list_entities('clusters', cluster_payload, client)
         for cluster_name in clusters:
             for entity in cluster_data["entities"]:
                 if entity["status"]["name"] == cluster_name:
@@ -483,7 +481,7 @@ def _delete(module, client, result):
     image_name = module.params.get("image_name")
 
     if image_name:
-        image_list_data = list_images(data, client)
+        image_list_data = list_entities('images', data, client)
         for entity in image_list_data["entities"]:
             if image_name == entity["status"]["name"]:
                 image_uuid = entity["metadata"]["uuid"]
