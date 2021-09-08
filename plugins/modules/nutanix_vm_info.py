@@ -217,7 +217,6 @@ def get_vm_list():
     result["vms"] = vm_name_list
     result["meta"] = meta_list
 
-    # simple AnsibleModule.exit_json(), passing the key/value results
     module.exit_json(**result)
 
 

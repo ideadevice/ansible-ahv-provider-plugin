@@ -115,6 +115,9 @@ def set_list_payload(data):
 
 
 def get_image_list():
+    """
+    Get a list of all images
+    """
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
         pc_hostname=dict(type="str", required=True,
@@ -166,20 +169,21 @@ def get_image_list():
         if image_name == entity["status"]["name"]:
             result["image"] = entity
             result["image_uuid"] = entity["metadata"]["uuid"]
-            break
+            module.exit_json(**result)
         else:
             spec_list.append(entity["spec"])
             status_list.append(entity["status"])
             image_list.append(entity["status"]["name"])
             meta_list.append(entity["metadata"])
 
-    if spec_list and status_list and image_list and meta_list:
+    if image_name and result.get("image") is None:
+        module.fail_json("Could not find image: {0}".format(image_name))
+    elif spec_list and status_list and image_list and meta_list:
         result["image_spec"] = spec_list
         result["image_status"] = status_list
         result["images"] = image_list
         result["meta_list"] = meta_list
 
-    # simple AnsibleModule.exit_json(), passing the key/value results
     module.exit_json(**result)
 
 
