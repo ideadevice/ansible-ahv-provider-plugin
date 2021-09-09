@@ -233,12 +233,13 @@ def set_list_payload(data):
     """
     payload = {}
 
-    if data and "length" in data:
-        payload["length"] = data["length"]
-    if data and "offset" in data:
-        payload["offset"] = data["offset"]
-    if data and "filter" in data:
-        payload["filter"] = data["filter"]
+    if data:
+        if "length" in data:
+            payload["length"] = data["length"]
+        if "offset" in data:
+            payload["offset"] = data["offset"]
+        if "filter" in data:
+            payload["filter"] = data["filter"]
 
     return payload
 
@@ -360,7 +361,7 @@ def create_image_spec(module, client, result):
         vm_list_data = list_entities('vms', vm_list_payload, client)
         # vm_name is considered to be unique
         # To-do: check and validate vm_disk_uuid for VMs with multiple Disks
-        vm_disk_uuid = vm_list_data["entities"][0]["spec"]["resources"]["disk_list"][0]["uuid"]
+        vm_disk_uuid = vm_list_data["entities"][0]["status"]["resources"]["disk_list"][0]["uuid"]
     if vm_disk_uuid:
         create_payload["spec"]["resources"]["data_source_reference"] = {
             "kind": "vm_disk", "uuid": vm_disk_uuid}

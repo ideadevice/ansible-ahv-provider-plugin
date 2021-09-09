@@ -106,10 +106,13 @@ def set_list_payload(data):
     """Generate payload for pagination support"""
     payload = {}
 
-    if data and "length" in data:
-        payload["length"] = data["length"]
-    if data and "offset" in data:
-        payload["offset"] = data["offset"]
+    if data:
+        if "length" in data:
+            payload["length"] = data["length"]
+        if "offset" in data:
+            payload["offset"] = data["offset"]
+        if "filter" in data:
+            payload["filter"] = data["filter"]
 
     return payload
 
