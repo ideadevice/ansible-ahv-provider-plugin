@@ -370,9 +370,19 @@ options:
                 - Cloud init content
                 type: str
                 required: False
+            cloud_init_file:
+                description:
+                - Cloud init input file
+                type: str
+                required: False
             sysprep:
                 description:
                 - Sysprep content
+                type: str
+                required: False
+            sysprep_file:
+                description:
+                - Sysprep input file
                 type: str
                 required: False
             sysprep_install_type:
@@ -441,7 +451,7 @@ import json
 import time
 import base64
 import os
-# import yaml #TO-DO figure out yaml import
+# import yaml  # TO-DO figure out yaml import
 from ansible.module_utils.basic import AnsibleModule, env_fallback
 from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client import (
     NutanixApiClient,
@@ -775,7 +785,13 @@ def main():
                 cloud_init=dict(
                     type='str',
                 ),
+                cloud_init_file=dict(
+                    type='str',
+                ),
                 sysprep=dict(
+                    type='str',
+                ),
+                sysprep_file=dict(
                     type='str',
                 ),
                 sysprep_install_type=dict(
@@ -960,8 +976,24 @@ def create_vm_spec(params, vm_spec, client):
         vm_spec["spec"]["resources"]["power_state"] = "ON"
 
     if params["guest_customization"]:
+        if (
+            params["guest_customization"]["cloud_init"] and
+            params["guest_customization"]["cloud_init_file"]
+        ):
+            error = "Please pass one of 'cloud_init' or 'cloud_init_file'."
+            return None, error
+
         if params["guest_customization"]["cloud_init"]:
-            file_path = params["guest_customization"]["cloud_init"]
+            cloud_init_encoded = base64.b64encode(
+                params["guest_customization"]["cloud_init"].encode('ascii')
+            )
+            vm_spec["spec"]["resources"]["guest_customization"] = {
+                "cloud_init": {
+                    "user_data": cloud_init_encoded.decode('ascii')
+                }
+            }
+        elif params["guest_customization"]["cloud_init_file"]:
+            file_path = params["guest_customization"]["cloud_init_file"]
             if not os.path.exists(file_path):
                 error = "Cloud-init yaml file '{0}' not found.'.".format(file_path)
                 return None, error
@@ -981,9 +1013,25 @@ def create_vm_spec(params, vm_spec, client):
                     "user_data": cloud_init_encoded.decode('ascii')
                 }
             }
+        if (
+            params["guest_customization"]["sysprep"] and
+            params["guest_customization"]["sysprep_file"]
+        ):
+            error = "Please pass one of 'sysprep' or 'sysprep_file'."
+            return None, error
 
         if params["guest_customization"]["sysprep"]:
-            file_path = params["guest_customization"]["sysprep"]
+            sysprep_init_encoded = base64.b64encode(
+                params["guest_customization"]["sysprep"].encode('ascii')
+            )
+            vm_spec["spec"]["resources"]["guest_customization"] = {
+                "sysprep": {
+                    "install_type": params["guest_customization"]["sysprep_install_type"],
+                    "unattend_xml": sysprep_init_encoded.decode('ascii')
+                }
+            }
+        elif params["guest_customization"]["sysprep_file"]:
+            file_path = params["guest_customization"]["sysprep_file"]
             if not os.path.exists(file_path):
                 error = "Sysprep xml file '{0}' not found.'.".format(file_path)
                 return None, error

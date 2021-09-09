@@ -18,20 +18,26 @@
         validate_certs: no
         name: "{{vm_name}}"
         state: "{{ state }}"
-        cluster: "{{cluster_uuid}}"
+        cluster: "{{cluster_name}}"
         cpu: 1
         vcpu: 1
         memory: 2048
         disk_list:
-          - clone_from_image: "{{vm_image_info.image_uuid}}"
+        - device_properties:
             device_type: DISK
-            adapter_type: SCSI
-            size_mib: 100000
-          - size_mib: 100000
-            device_type: "DISK"
-            adapter_type: "SCSI"
+            disk_address:
+              adapter_type: SCSI
+          disk_size_mib: 100000
+          data_source_reference:
+            uuid: "{{vm_image_info.image_uuid}}"
+        - device_properties:
+            device_type: DISK
+            disk_address:
+              adapter_type: SCSI
+          disk_size_mib: 100000
         nic_list:
-          - uuid: "{{subnet_uuid}}"
+        - subnet_reference:
+            name: "{{subnet_name}}"
         guest_customization:
           cloud_init: |-
             #cloud-config
@@ -55,7 +61,7 @@
           register: vm_info
         - name: "Setting VM IP fact"
           set_fact:
-            vm_ip: "{{vm_info.vms_spec[0].resources.nic_list[0].ip_endpoint_list[0].ip}}"
+            vm_ip: "{{vm_info.vm_status[0].resources.nic_list[0].ip_endpoint_list[0].ip}}"
         - name: "Waiting for SSH to become available on host {{ vm_ip }}"
           wait_for:
             port: 22

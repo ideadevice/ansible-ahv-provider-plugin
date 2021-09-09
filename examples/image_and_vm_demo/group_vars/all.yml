@@ -13,6 +13,7 @@ checksum_algorithm: <SHA_1-or-SHA_256>
 ##create_vm
 vm_name: ansible-vm-demo
 cluster_uuid: <pe_cluster_uuid>
+subnet_name: <subnet_name>
 subnet_uuid: <subnet_uuid>
 vm_image_name: centos_8_ansible_demo
 ansible_user: demo
