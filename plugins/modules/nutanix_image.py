@@ -399,7 +399,6 @@ def _create(module, client, result):
     image_uuid_list = []
     image_spec = create_image_spec(module, client, result)
     image_name = module.params.get("image_name")
-    force_create = module.params.get("force")
 
     # Get existing image state
     image_state, image_uuid = get_existing_image_state(module, client)
@@ -480,7 +479,7 @@ def _delete(module, client, result):
                 image_update_spec = entity
                 image_count += 1
             if image_count > 1:
-                result["msg"] = "Found multiple images with name {0}, specify image_uuid or use force option to remove all images".format(
+                result["msg"] = "Found multiple images with name {0}".format(
                     image_name)
                 result["failed"] = True
                 return result
