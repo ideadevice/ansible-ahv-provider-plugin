@@ -117,13 +117,6 @@ options:
         - If C(state) is set to C(absent) and the image is present, all images with the specified name are removed
         type: str
         default: present
-    force:
-        description:
-        - Used with C(present) or C(absent)
-        - Creates of multiple images with same name when set to true with C(present)
-        - Deletes all image with the same name when set to true with C(absent)
-        type: bool
-        default: False
     validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
@@ -190,7 +183,6 @@ RETURN = r"""
 """
 
 import json
-import copy
 from os.path import splitext
 from urllib.parse import urlparse
 from ansible.module_utils.basic import AnsibleModule, env_fallback
@@ -278,7 +270,6 @@ def generate_argument_spec(result):
             )
         ),
         state=dict(type="str", default="present"),
-        force=dict(type="bool", default=False),
         validate_certs=dict(type="bool", default=True, fallback=(
             env_fallback, ["VALIDATE_CERTS"])),
     )
@@ -478,7 +469,6 @@ def _delete(module, client, result):
     image_count = 0
     task_uuid_list, image_list, image_uuid_list = [], [], []
     data = set_list_payload(module.params["data"])
-    force_delete = module.params.get("force")
     image_name = module.params.get("image_name")
 
     if image_name:
@@ -489,26 +479,15 @@ def _delete(module, client, result):
                 image_uuid_list.append(image_uuid)
                 image_update_spec = entity
                 image_count += 1
-            if image_count > 1 and not force_delete:
+            if image_count > 1:
                 result["msg"] = "Found multiple images with name {0}, specify image_uuid or use force option to remove all images".format(
                     image_name)
                 result["failed"] = True
                 return result
         if image_count == 0:
-            result["msg"] = "Could not find any image with name {0}".format(
-                image_name)
-            result["failed"] = True
             return result
         if not image_uuid_list:
-            result["msg"] = "Could not find UUID for image {0}".format(
-                image_name)
-            result["failed"] = True
             return result
-        # Delete all images with duplicate names when force is set to true
-        if image_count > 1 and force_delete:
-            for uuid in image_uuid_list:
-                task_uuid = delete_image(uuid, client)
-                task_uuid_list.append(task_uuid)
         elif image_count == 1:
             result["image_count"] = 1
             result["changed"] = True
