@@ -1324,7 +1324,6 @@ def _delete(params, client):
     else:
         vm_uuid_list = get_vm_uuid(params, client)
         if not vm_uuid_list:
-            result["failed"] = True
             result["msg"] = "VM with given name '{0}' not found.".format(vm_name)
             return result
 
