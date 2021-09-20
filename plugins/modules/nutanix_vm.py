@@ -575,7 +575,8 @@ def main():
             type='str', required=True, no_log=True, fallback=(env_fallback, ["PC_PASSWORD"])
         ),
         pc_port=dict(default="9440", type='str'),
-        validate_certs=dict(default=True, type='bool'),
+        validate_certs=dict(type="bool", default=True, fallback=(
+            env_fallback, ["VALIDATE_CERTS"])),
         state=dict(
             default="present",
             type='str',

@@ -56,12 +56,12 @@ class NutanixApiClient(object):
             response = self.session.request(method=method, url=self.api_url, auth=self.auth,
                                             data=data, headers=headers, verify=self.validate_certs, timeout=timeout)
         except requests.exceptions.RequestException as cerr:
-            raise NutanixApiError("Request failed {0}".format(str(cerr)))
+            self.module.fail_json("Request failed {0}".format(str(cerr)))
 
         if response.ok:
             return response
         else:
-            raise NutanixApiError("Request failed to complete, response code {0}, content {1}".format(
+            self.module.fail_json("Request failed to complete, response code {0}, content {1}".format(
                 response.status_code, response.content))
 
     def check_dependencies(self):
@@ -88,7 +88,7 @@ def task_poll(task_uuid, client):
         elif response.json()["status"] == "FAILED":
             error_out = response.json()["error_detail"]
             return error_out
-        time.sleep(5)
+        time.sleep(10)
 
 
 def list_entities(api, filter, client):

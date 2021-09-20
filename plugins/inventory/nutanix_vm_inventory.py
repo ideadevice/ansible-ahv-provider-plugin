@@ -40,6 +40,12 @@ DOCUMENTATION = r'''
         type: str
         env:
          - name: PC_PORT
+      data:
+        description:
+        - Pagination support for listing VMs
+        - Default length(number of records to retrieve) has been set to 500
+        default: {"offset": 0, "length": 500}
+        type: dict
       validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
@@ -56,6 +62,7 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
+import json
 from ansible.errors import AnsibleError
 from ansible.plugins.inventory import BaseInventoryPlugin
 
@@ -85,10 +92,9 @@ class InventoryModule(BaseInventoryPlugin):
         api_url = "https://{0}:{1}/api/nutanix/v3/vms/list".format(self.pc_hostname, self.pc_port)
         auth = (self.pc_username, self.pc_password)
         headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-        payload = '{"offset": 0, "length": 100}'
 
         session = self._get_create_session()
-        vm_list_response = session.post(url=api_url, auth=auth, headers=headers, data=payload)
+        vm_list_response = session.post(url=api_url, auth=auth, headers=headers, data=json.dumps(self.data))
 
         return vm_list_response.json()
 
@@ -150,6 +156,7 @@ class InventoryModule(BaseInventoryPlugin):
         self.pc_username = self.get_option('pc_username')
         self.pc_password = self.get_option('pc_password')
         self.pc_port = self.get_option('pc_port')
+        self.data = self.get_option('data')
         self.validate_certs = self.get_option('validate_certs')
 
         self._build_inventory()

@@ -37,7 +37,11 @@ options:
         - PC port
         type: str
         default: 9440
-        required: False
+    vm_name:
+        description:
+        - VM Name
+        - Takes precedence over filter value under data
+        type: str
     validate_certs:
         description:
         - Set value to C(False) to skip validation for self signed certificates
@@ -57,7 +61,7 @@ options:
         - '     - ASCENDING'
         - '     - DESCENDING'
         type: dict
-        required: False
+        default: {"offset": 0, "length": 500, "sort_attribute": "", "sort_order": "ASCENDING"}
         suboptions:
             filter:
                 description:
@@ -124,22 +128,18 @@ def set_list_payload(data):
     Returns:
         payload(dict): will have post payload dict
     """
-    length = 100
-    offset = 0
-    filter = ''
-
-    payload = {"filter": filter, "length": length, "offset": offset}
+    payload = {}
 
     if data:
-        if data["length"]:
+        if "length" in data:
             payload["length"] = data["length"]
-        if data["offset"]:
+        if "offset" in data:
             payload["offset"] = data["offset"]
-        if data["filter"]:
+        if "filter" in data:
             payload["filter"] = data["filter"]
-        if data["sort_attribute"]:
+        if "sort_attribute" in data:
             payload["sort_attribute"] = data["sort_attribute"]
-        if data["sort_order"]:
+        if "sort_order" in data:
             payload["sort_order"] = data["sort_order"]
 
     return payload
@@ -154,10 +154,12 @@ def get_vm_list():
                          fallback=(env_fallback, ["PC_USERNAME"])),
         pc_password=dict(type='str', required=True, no_log=True,
                          fallback=(env_fallback, ["PC_PASSWORD"])),
-        pc_port=dict(default="9440", type='str', required=False),
+        pc_port=dict(default="9440", type='str'),
+        vm_name=dict(type="str"),
         data=dict(
             type='dict',
-            required=False,
+            default={"offset": 0, "length": 500,
+                     "sort_attribute": "", "sort_order": "ASCENDING"},
             options=dict(
                 filter=dict(type='str'),
                 length=dict(type='int'),
@@ -172,7 +174,8 @@ def get_vm_list():
                 )
             )
         ),
-        validate_certs=dict(default=True, type='bool', required=False),
+        validate_certs=dict(type="bool", default=True, fallback=(
+            env_fallback, ["VALIDATE_CERTS"])),
     )
 
     module = AnsibleModule(
@@ -190,7 +193,7 @@ def get_vm_list():
         meta={}
     )
 
-    # return initial result dict for dry run without execution
+    # Return initial result dict for dry run without execution
     if module.check_mode:
         module.exit_json(**result)
 
@@ -198,11 +201,15 @@ def get_vm_list():
     client = NutanixApiClient(module)
 
     # List VMs
+    vm_name = module.params.get("vm_name")
     spec_list, status_list, vm_name_list, meta_list = [], [], [], []
     data = set_list_payload(module.params['data'])
+    result["data"] = data
     length = data["length"]
     offset = data["offset"]
     total_matches = 99999
+    if vm_name:
+        data["filter"] = "vm_name=={0}".format(vm_name)
 
     while offset < total_matches:
         data["offset"] = offset
@@ -216,12 +223,14 @@ def get_vm_list():
         total_matches = vms_list["metadata"]["total_matches"]
         offset += length
 
-    result["vms_spec"] = spec_list
-    result["vm_status"] = status_list
-    result["vms"] = vm_name_list
-    result["meta"] = meta_list
+    if spec_list:
+        result["vms_spec"] = spec_list
+        result["vm_status"] = status_list
+        result["vms"] = vm_name_list
+        result["meta"] = meta_list
+    else:
+        module.fail_json("Could not find VM: {0}".format(vm_name))
 
-    # simple AnsibleModule.exit_json(), passing the key/value results
     module.exit_json(**result)
 
 

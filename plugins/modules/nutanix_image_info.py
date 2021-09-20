@@ -55,6 +55,7 @@ options:
         - ' - C(length) (int): length'
         - ' - C(offset) (str): offset'
         type: dict
+        default: {"offset": 0, "length": 500}
         suboptions:
             length:
                 description:
@@ -102,19 +103,24 @@ from ansible_collections.nutanix.nutanix.plugins.module_utils.nutanix_api_client
 
 
 def set_list_payload(data):
-    length = 100
-    offset = 0
-    payload = {"length": length, "offset": offset}
+    """Generate payload for pagination support"""
+    payload = {}
 
-    if data and "length" in data:
-        payload["length"] = data["length"]
-    if data and "offset" in data:
-        payload["offset"] = data["offset"]
+    if data:
+        if "length" in data:
+            payload["length"] = data["length"]
+        if "offset" in data:
+            payload["offset"] = data["offset"]
+        if "filter" in data:
+            payload["filter"] = data["filter"]
 
     return payload
 
 
 def get_image_list():
+    """
+    Get a list of all images
+    """
     # define available arguments/parameters a user can pass to the module
     module_args = dict(
         pc_hostname=dict(type="str", required=True,
@@ -127,12 +133,14 @@ def get_image_list():
         image_name=dict(type="str"),
         data=dict(
             type="dict",
+            default={"offset": 0, "length": 500},
             options=dict(
                 length=dict(type="int"),
                 offset=dict(type="int")
             )
         ),
-        validate_certs=dict(type="bool", default=True),
+        validate_certs=dict(type="bool", default=True, fallback=(
+            env_fallback, ["VALIDATE_CERTS"])),
     )
 
     module = AnsibleModule(
@@ -146,11 +154,11 @@ def get_image_list():
         ansible_facts={},
     )
 
-    # return initial result dict for dry run without execution
+    # Return initial result dict for dry run without execution
     if module.check_mode:
         module.exit_json(**result)
 
-    # Instantiate api client
+    # Create api client
     client = NutanixApiClient(module)
 
     # Get image list/details
@@ -164,20 +172,21 @@ def get_image_list():
         if image_name == entity["status"]["name"]:
             result["image"] = entity
             result["image_uuid"] = entity["metadata"]["uuid"]
-            break
+            module.exit_json(**result)
         else:
             spec_list.append(entity["spec"])
             status_list.append(entity["status"])
             image_list.append(entity["status"]["name"])
             meta_list.append(entity["metadata"])
 
-    if spec_list and status_list and image_list and meta_list:
+    if image_name and result.get("image") is None:
+        module.fail_json("Could not find image: {0}".format(image_name))
+    elif spec_list and status_list and image_list and meta_list:
         result["image_spec"] = spec_list
         result["image_status"] = status_list
         result["images"] = image_list
         result["meta_list"] = meta_list
 
-    # simple AnsibleModule.exit_json(), passing the key/value results
     module.exit_json(**result)
 
 
