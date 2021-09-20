@@ -1180,7 +1180,7 @@ def _create(params, client):
         result["vm_spec"] = vm_payload
         return result
 
-    if params['power_state']:
+    if params['power_state'] and params['nic_list']:
         if params['power_state'] == "ON":
             check_for_ip = True
 
@@ -1239,16 +1239,18 @@ def _update(params, client, vm_uuid=None):
     current_vm_payload = get_vm(vm_uuid, client)
 
     current_vm_disk_list_length = len(current_vm_payload["spec"]["resources"]["disk_list"])
+    current_vm_nic_list_length = len(current_vm_payload["status"]["resources"]["nic_list"])
     if "guest_customization" in current_vm_payload["spec"]["resources"]:
         current_vm_disk_list_length = (current_vm_disk_list_length - 1)
 
-    new_vm_disk_list_length = len(params["disk_list"])
+    new_vm_disk_list_length = len(params["disk_list"]) if params["disk_list"] else 0
+    new_vm_nic_list_length = len(params["nic_list"]) if params["nic_list"] else 0
 
     if (
         params['cpu'] < current_vm_payload["status"]["resources"]["num_sockets"] or
         params['vcpu'] < current_vm_payload["status"]["resources"]["num_vcpus_per_socket"] or
         params['memory'] < current_vm_payload["status"]["resources"]["memory_size_mib"] or
-        len(params['nic_list']) < len(current_vm_payload["status"]["resources"]["nic_list"]) or
+        new_vm_nic_list_length < current_vm_nic_list_length or
         new_vm_disk_list_length < current_vm_disk_list_length
     ):
         if current_vm_payload["status"]["resources"]["power_state"] == "ON":
