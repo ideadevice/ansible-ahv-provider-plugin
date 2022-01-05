@@ -345,6 +345,12 @@ def get_cluster_uuid(cluster_name, client):
     return cluster_uuid
 
 
+def get_subnet(subnet_uuid, client):
+    get_subnet = client.request(
+        api_endpoint="v3/subnets/{0}".format(subnet_uuid), method="GET", data=None)
+    return get_subnet.json()
+
+
 def get_subnet_uuid(subnet_name, client):
     """
     This routine helps to get subnet uuid list using given name
@@ -369,6 +375,31 @@ def get_subnet_uuid(subnet_name, client):
         offset += length
 
     return subnet_uuid
+
+
+def create_subnet(data, client):
+    response = client.request(
+        api_endpoint="v3/subnets",
+        method="POST",
+        data=json.dumps(data)
+    )
+    json_content = response.json()
+    return (
+        json_content["status"]["execution_context"]["task_uuid"],
+        json_content["metadata"]["uuid"]
+    )
+
+
+def update_subnet(vm_uuid, data, client):
+    response = client.request(
+        api_endpoint="v3/subnets/{0}".format(vm_uuid), method="PUT", data=json.dumps(data))
+    return response.json()["status"]["execution_context"]["task_uuid"]
+
+
+def delete_subnet(vm_uuid, client):
+    response = client.request(
+        api_endpoint="v3/subnets/{0}".format(vm_uuid), method="DELETE", data=None)
+    return response.json()["status"]["execution_context"]["task_uuid"]
 
 
 def groups_call(filter, client):
@@ -429,6 +460,47 @@ def get_cluster_storage_container_map(storage_container_name, client):
     return cluster_sc_map
 
 
+def get_cluster_vswitch_uuid(vswitch_name, cluster_uuid, client):
+    length = 250
+    offset = 0
+    total_matches = 99999
+    cluster_vs_map = {}
+    while offset < total_matches:
+        filter = {
+            "entity_type": "distributed_virtual_switch",
+            "group_member_attributes": [
+                {
+                    "attribute": "name"
+                },
+                {
+                    "attribute": "cluster_configuration_list.cluster_uuid"
+                },
+                {
+                    "attribute": "default"
+                }
+            ],
+            "group_member_count": length,
+            "group_member_offset": offset,
+            "filter_criteria": "cluster_configuration_list.cluster_uuid=cs={0}".format(cluster_uuid)
+        }
+        vs_list = groups_call(filter, client)
+        for vs in vs_list["group_results"][0]["entity_results"]:
+            for attribute in vs["data"]:
+                if attribute["name"] == "name":
+                    sc_name = attribute["values"][0]["values"][0]
+                if attribute["name"] == "cluster_configuration_list.cluster_uuid":
+                    cluster = attribute["values"][0]["values"][0]
+                entity_id = vs["entity_id"]
+
+            if sc_name == vswitch_name:
+                cluster_vs_map[cluster] = entity_id
+
+        total_matches = vs_list["total_entity_count"]
+        offset += length
+
+    return cluster_vs_map
+
+
 def is_uuid(UUID):
     """
     This routine helps to determine given UUID is a valid uuid or not
@@ -454,19 +526,21 @@ def set_payload_keys(params, payload_format, payload):
     Returns:
         payload(dict): returns final dict after setting all the params
     """
-    for i in payload_format.keys():
-
-        if params[i] is None:
-            continue
-        elif type(params[i]) is dict:
-            payload[i] = set_payload_keys(params[i], payload_format[i], {})
-        elif type(params[i]) is list:
-            payload[i] = []
-            for item in params[i]:
-                payload[i].append(set_payload_keys(item, payload_format[i][0], {}))
-        elif type(params[i]) is str or type(params[i]) is int:
-            payload[i] = params[i]
-    return payload
+    if type(params) is str or type(params) is int:
+        return params
+    else:
+        for i in payload_format.keys():
+            if params[i] is None:
+                continue
+            elif type(params[i]) is dict:
+                payload[i] = set_payload_keys(params[i], payload_format[i], {})
+            elif type(params[i]) is list:
+                payload[i] = []
+                for item in params[i]:
+                    payload[i].append(set_payload_keys(item, payload_format[i][0], {}))
+            elif type(params[i]) is str or type(params[i]) is int:
+                payload[i] = params[i]
+        return payload
 
 
 def has_changed(source_payload, destination_payload):
@@ -479,21 +553,31 @@ def has_changed(source_payload, destination_payload):
         status(bool): returns bool value after comparision
     """
     status = False
-    for key in source_payload.keys():
-        if type(source_payload[key]) is dict:
-            status = has_changed(source_payload[key], destination_payload[key])
-        elif type(source_payload[key]) is list:
-            for i, item in enumerate(source_payload[key]):
+    if type(source_payload) is str or type(source_payload) is int:
+        if source_payload != destination_payload:
+            return True
+    else:
+        for key in source_payload.keys():
+            if type(source_payload[key]) is dict:
                 try:
-                    status = has_changed(item, destination_payload[key][i])
-                except IndexError:
+                    status = has_changed(source_payload[key], destination_payload[key])
+                except KeyError:
                     status = True
-        elif type(source_payload[key]) is str or type(source_payload[key]) is int:
-            if source_payload[key] != destination_payload[key]:
-                return True
+            elif type(source_payload[key]) is list:
+                for i, item in enumerate(source_payload[key]):
+                    try:
+                        status = has_changed(item, destination_payload[key][i])
+                    except IndexError:
+                        status = True
+            elif type(source_payload[key]) is str or type(source_payload[key]) is int:
+                try:
+                    if source_payload[key] != destination_payload[key]:
+                        return True
+                except KeyError:
+                    return True
 
-        if status:
-            return status
+            if status:
+                return status
     return status
 
 
