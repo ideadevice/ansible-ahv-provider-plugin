@@ -1,0 +1,40 @@
+name: Acceptance Test cases
+on:
+  repository_dispatch:
+    types: [ok-to-test-command]
+jobs:
+  acceptance_test_cases:
+    runs-on: self-hosted
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+      - run: echo "🔎 The name of your branch is ${{ github.ref }} and your repository is ${{ github.repository }}."
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install ansible
+        run: pip install ansible
+      - name: Build and install the collection
+        run: ansible-galaxy collection build && ansible-galaxy collection install nutanix-nutanix-0.0.1-rc1.tar.gz
+      - name: Acceptance test cases
+        run: | 
+          cd /home/${USER}/.ansible/collections/ansible_collections/nutanix/nutanix
+          ansible-test sanity --docker default --python 3.9
+      - name: Code Coverage Check
+        run:  |
+              echo "Code coverage: Checking if code coverage is above threshold..."
+              export TESTCOV_THRESHOLD=50
+              echo "Threshold: $TESTCOV_THRESHOLD %"
+              totalCoverage=`go tool cover -func=c.out | grep total | grep -Eo '[0-9]+\.[0-9]+'`
+              echo "Current test coverage : $totalCoverage %"
+              if (( $(echo "$totalCoverage $TESTCOV_THRESHOLD" | awk '{print ($1 > $2)}') )); then
+                  echo "Coverage passed"
+              else
+                  echo "Current test coverage is below threshold. Please add more unit tests or adjust threshold to a lower value."
+                  echo "Coverage check failed"
+                  exit 1
+              fi
+      - run: echo "🍏 This job's status is ${{ job.status }}."
