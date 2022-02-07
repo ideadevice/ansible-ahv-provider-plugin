@@ -54,6 +54,12 @@ DOCUMENTATION = r'''
         type: boolean
         env:
          - name: VALIDATE_CERTS
+      hostnames:
+        description:
+          - A list of templates in order of precedence to compose inventory_hostname.
+          - If the template results in an empty string or None value it is ignored.
+        type: list
+        default: ['name']
 '''
 
 try:
@@ -64,10 +70,11 @@ except ImportError:
 
 import json
 from ansible.errors import AnsibleError
-from ansible.plugins.inventory import BaseInventoryPlugin
+from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
+from ansible.module_utils._text import to_text
 
 
-class InventoryModule(BaseInventoryPlugin):
+class InventoryModule(BaseInventoryPlugin, Constructable):
     '''Nutanix VM dynamic invetory parser for ansible'''
 
     NAME = 'nutanix.nutanix.nutanix_vm_inventory'
@@ -75,6 +82,26 @@ class InventoryModule(BaseInventoryPlugin):
     def __init__(self):
         super(InventoryModule, self).__init__()
         self.session = None
+
+    def _get_hostname(self, properties, hostnames):
+        hostname = None
+        errors = []
+
+        for preference in hostnames:
+            try:
+                hostname = self._compose(preference, properties)
+            except Exception as e:  # pylint: disable=broad-except
+                errors.append(
+                    (preference, str(e))
+                )
+            if hostname:
+                return to_text(hostname)
+
+        raise AnsibleError(
+            'Could not template any hostname for host, errors for each preference: %s' % (
+                ', '.join(['%s: %s' % (pref, err) for pref, err in errors])
+            )
+        )
 
     def _get_create_session(self):
         '''Create session'''
@@ -103,14 +130,16 @@ class InventoryModule(BaseInventoryPlugin):
         vars_to_remove = ["disk_list", "vnuma_config", "nic_list", "power_state_mechanism", "host_reference",
                           "serial_port_list", "gpu_list", "storage_config", "boot_config", "guest_customization"]
         vm_list_resp = self._get_vm_list()
+        hostnames = self.get_option('hostnames')
 
         for entity in vm_list_resp["entities"]:
             nic_count = 0
             cluster = entity["status"]["cluster_reference"]["name"]
             # self.inventory.add_host(f"{vm_name}-{vm_uuid}")
-            vm_name = entity["status"]["name"]
-            vm_uuid = entity["metadata"]["uuid"]
 
+            vm_name = self._get_hostname(entity["status"], hostnames)
+            vm_uuid = entity["metadata"]["uuid"]
+            
             # Get VM IP
             for nics in entity["status"]["resources"]["nic_list"]:
                 if nics["nic_type"] == "NORMAL_NIC" and nic_count == 0:
