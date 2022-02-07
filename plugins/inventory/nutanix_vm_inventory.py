@@ -36,7 +36,7 @@ DOCUMENTATION = r'''
          - name: PC_PASSWORD
       pc_port:
         description: PC port
-        default: 9440
+        default: '9440'
         type: str
         env:
          - name: PC_PORT
