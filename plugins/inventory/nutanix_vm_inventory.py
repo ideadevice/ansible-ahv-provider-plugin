@@ -40,6 +40,9 @@ DOCUMENTATION = r'''
         type: str
         env:
          - name: PC_PORT
+      group_prefix:
+        description: prefix to apply to foreman groups
+        default: nutanix_
       data:
         description:
         - Pagination support for listing VMs
@@ -64,7 +67,7 @@ except ImportError:
 
 import json
 from ansible.errors import AnsibleError
-from ansible.plugins.inventory import BaseInventoryPlugin
+from ansible.plugins.inventory import BaseInventoryPlugin, to_safe_group_name
 
 
 class InventoryModule(BaseInventoryPlugin):
@@ -121,9 +124,11 @@ class InventoryModule(BaseInventoryPlugin):
                             continue
 
             # Add inventory groups and hosts to inventory groups
-            self.inventory.add_group(cluster)
-            self.inventory.add_child('all', cluster)
-            self.inventory.add_host(vm_name, group=cluster)
+
+            gname =  to_safe_group_name('%s%s' % (self.get_option('group_prefix'), cluster.lower().replace(" ", "")))
+            self.inventory.add_group(gname)
+            self.inventory.add_child('all', gname)
+            self.inventory.add_host(vm_name, group=gname)
             self.inventory.set_variable(vm_name, 'ansible_host', vm_ip)
             self.inventory.set_variable(vm_name, 'uuid', vm_uuid)
 
